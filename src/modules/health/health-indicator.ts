@@ -1,4 +1,3 @@
-
 export interface HealthIndicator {
   readonly name: string;
   check(): Promise<void>;

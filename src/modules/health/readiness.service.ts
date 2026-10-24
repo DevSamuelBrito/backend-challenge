@@ -28,7 +28,6 @@ export class ReadinessService {
   constructor(@Inject(HEALTH_INDICATORS) private readonly indicators: HealthIndicator[]) {}
 
   async check(): Promise<ReadinessReport> {
-
     const results = await Promise.allSettled(this.indicators.map((indicator) => indicator.check()));
 
     const checks: Record<string, DependencyStatus> = {};
@@ -37,7 +36,6 @@ export class ReadinessService {
       const indicator = this.indicators[index] as HealthIndicator;
 
       if (result.status === "rejected") {
-
         this.logger.warn(`${indicator.name} indisponível: ${describeFailure(result.reason)}`);
       }
 
