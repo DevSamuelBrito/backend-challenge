@@ -1,7 +1,6 @@
 import type { IntegrationEvent } from "../../../shared/events/integration-event";
 import { OutboxMessageAlreadyPublishedError } from "./messaging-errors";
 
-
 export const OUTBOX_RETRY_BASE_DELAY_MS = 1_000;
 export const OUTBOX_RETRY_MAX_DELAY_MS = 60_000;
 
