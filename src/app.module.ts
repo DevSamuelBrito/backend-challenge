@@ -3,6 +3,7 @@ import { ConfigModule } from "./config/config.module";
 import type { AppConfig } from "./config/env";
 import { HealthModule } from "./modules/health/health.module";
 import { DatabaseModule } from "./shared/infrastructure/database/database.module";
+import { PersistenceModule } from "./shared/infrastructure/database/persistence.module";
 import { SqsModule } from "./shared/infrastructure/sqs/sqs.module";
 
 /**
@@ -15,7 +16,13 @@ export class AppModule {
   static register(config: AppConfig): DynamicModule {
     return {
       module: AppModule,
-      imports: [ConfigModule.forRoot(config), DatabaseModule, SqsModule, HealthModule],
+      imports: [
+        ConfigModule.forRoot(config),
+        DatabaseModule,
+        PersistenceModule,
+        SqsModule,
+        HealthModule,
+      ],
     };
   }
 }

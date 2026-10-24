@@ -16,6 +16,7 @@ export interface AppConfig {
   port: number;
   roles: readonly AppRole[];
   databaseUrl: string;
+  databaseLockTimeoutMs: number;
   sqs: SqsConfig;
 }
 
@@ -24,6 +25,12 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
 
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
     throw new Error(`PORT inválida: ${env.PORT}`);
+  }
+
+  const databaseLockTimeoutMs = Number(env.DB_LOCK_TIMEOUT_MS ?? 5000);
+
+  if (!Number.isInteger(databaseLockTimeoutMs) || databaseLockTimeoutMs <= 0) {
+    throw new Error(`DB_LOCK_TIMEOUT_MS inválido: ${env.DB_LOCK_TIMEOUT_MS}`);
   }
 
   const rawRoles = (env.APP_ROLES ?? ALL_ROLES.join(","))
@@ -41,6 +48,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     port,
     roles: rawRoles as AppRole[],
     databaseUrl: env.DATABASE_URL ?? "postgres://wagering:wagering@localhost:5432/wagering",
+    databaseLockTimeoutMs,
     sqs: {
       region: env.AWS_REGION ?? "us-east-1",
       endpoint: env.SQS_ENDPOINT ?? "http://localhost:4566",
