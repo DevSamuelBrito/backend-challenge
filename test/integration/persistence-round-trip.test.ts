@@ -345,17 +345,69 @@ describe("persistência: round-trip de cada agregado no Postgres real", () => {
         referenceExternalTransactionId: bet.externalTransactionId,
       });
 
-      refund.markPendingReference();
+      refund.markPendingReference(LATER);
       await h.uow.run(({ transactions }) => transactions.save(refund));
       expect(await h.uow.run(({ transactions }) => transactions.findById(refund.id))).toEqual(
         refund,
       );
+
+      const pending = await h.uow.run(({ transactions }) => transactions.findById(refund.id));
+      expect(pending?.nextAttemptAt).toEqual(LATER);
+      expect(pending?.referenceAttempts).toBe(0);
 
       refund.markProcessed(bet.id, brl("100.00"), AT);
       await h.uow.run(({ transactions }) => transactions.save(refund));
       expect(await h.uow.run(({ transactions }) => transactions.findById(refund.id))).toEqual(
         refund,
       );
+
+      const resolved = await h.uow.run(({ transactions }) => transactions.findById(refund.id));
+      expect(resolved?.nextAttemptAt).toBeUndefined();
+    });
+
+    test("referenceAttempts e nextAttemptAt viajam inteiros pelo add e pelo findById", async () => {
+      const wallet = await seedWallet();
+      const waiting = await saved(wallet.id, {
+        kind: WagerTransactionKind.Refund,
+        referenceExternalTransactionId: "ext-que-nao-chegou",
+        status: WagerTransactionStatus.PendingReference,
+        referenceAttempts: 3,
+        nextAttemptAt: LATER,
+      });
+
+      const loaded = await h.uow.run(({ transactions }) => transactions.findById(waiting.id));
+
+      expect(loaded).toEqual(waiting);
+      expect(loaded?.referenceAttempts).toBe(3);
+      expect(loaded?.nextAttemptAt).toEqual(LATER);
+    });
+
+    test("save persiste novas tentativas e nova próxima tentativa de uma transação PENDING_REFERENCE", async () => {
+      const wallet = await seedWallet();
+      const waiting = await saved(wallet.id, {
+        kind: WagerTransactionKind.Refund,
+        referenceExternalTransactionId: "ext-que-nao-chegou",
+        status: WagerTransactionStatus.PendingReference,
+        referenceAttempts: 1,
+        nextAttemptAt: AT,
+      });
+      const later = new Date(LATER.getTime() + 4000);
+      const retried = aNewTransaction(wallet.id, {
+        id: waiting.id,
+        externalTransactionId: waiting.externalTransactionId,
+        idempotencyKey: waiting.idempotencyKey,
+        kind: WagerTransactionKind.Refund,
+        referenceExternalTransactionId: "ext-que-nao-chegou",
+        status: WagerTransactionStatus.PendingReference,
+        referenceAttempts: 2,
+        nextAttemptAt: later,
+      });
+
+      await h.uow.run(({ transactions }) => transactions.save(retried));
+      const loaded = await h.uow.run(({ transactions }) => transactions.findById(waiting.id));
+
+      expect(loaded?.referenceAttempts).toBe(2);
+      expect(loaded?.nextAttemptAt).toEqual(later);
     });
 
     test("dentro do mesmo run, reler a transação depois de save devolve o estado novo, sem cache", async () => {

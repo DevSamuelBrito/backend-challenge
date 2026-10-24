@@ -9,4 +9,5 @@ export interface WagerTransactionRepository {
     providerId: string,
     externalTransactionId: string,
   ): Promise<WagerTransaction | undefined>;
+  hasProcessedReversalOf(referenceTransactionId: string): Promise<boolean>;
 }

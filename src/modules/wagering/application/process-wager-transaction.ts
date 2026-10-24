@@ -14,21 +14,21 @@ import { LedgerDirection } from "../../wallet/domain/ledger-direction";
 import type { Wallet } from "../../wallet/domain/wallet";
 import { InsufficientFundsError, WalletNotFoundError } from "../../wallet/domain/wallet-errors";
 import type { WalletLedgerEntry } from "../../wallet/domain/wallet-ledger-entry";
+import { WagerTransactionPendingReference } from "../domain/events/wager-transaction-pending-reference";
 import { WagerTransactionProcessed } from "../domain/events/wager-transaction-processed";
 import { WagerTransactionRejected } from "../domain/events/wager-transaction-rejected";
 import { FailureCode } from "../domain/failure-code";
-import {
-  WagerTransaction,
-  WagerTransactionKind,
-  WagerTransactionStatus,
-} from "../domain/wager-transaction";
+import { evaluateReference, type ReferenceLookup } from "../domain/reference-policy";
+import { WagerTransaction, WagerTransactionStatus } from "../domain/wager-transaction";
 import {
   ExternalTransactionConflictError,
   IdempotencyConflictError,
 } from "../domain/wager-transaction-errors";
 import { computePayloadHash } from "./payload-hash";
 import type { ProcessWagerTransactionCommand } from "./process-wager-transaction.command";
-import { DuplicateTransactionError, KindNotSupportedYetError } from "./wagering-errors";
+import { DuplicateTransactionError } from "./wagering-errors";
+
+const PENDING_REFERENCE_FIRST_RETRY_DELAY_MS = 1000;
 
 export interface ProcessWagerTransactionResult {
   transactionId: string;
@@ -47,8 +47,6 @@ export class ProcessWagerTransaction {
   ) {}
 
   async execute(command: ProcessWagerTransactionCommand): Promise<ProcessWagerTransactionResult> {
-    this.assertSupported(command);
-
     const payloadHash = computePayloadHash(command);
 
     try {
@@ -108,10 +106,11 @@ export class ProcessWagerTransaction {
         gameId: command.gameId,
         kind: command.kind,
         money: command.money,
+        referenceExternalTransactionId: command.referenceExternalTransactionId,
         createdAt: at,
       });
 
-      const entry = this.decide(wallet, transaction, at);
+      const entry = await this.decide(repositories, wallet, transaction, at);
 
       await this.persist(repositories, { command, wallet, transaction, entry, at });
 
@@ -146,11 +145,12 @@ export class ProcessWagerTransaction {
     return undefined;
   }
 
-  private decide(
+  private async decide(
+    repositories: Repositories,
     wallet: Wallet,
     transaction: WagerTransaction,
     at: Date,
-  ): WalletLedgerEntry | undefined {
+  ): Promise<WalletLedgerEntry | undefined> {
     const failure = this.preconditionFailure(wallet, transaction);
 
     if (failure) {
@@ -158,8 +158,57 @@ export class ProcessWagerTransaction {
       return undefined;
     }
 
+    const lookup = await this.lookupReference(repositories, transaction);
+    const decision = evaluateReference(transaction, lookup);
+
+    switch (decision.status) {
+      case WagerTransactionStatus.Rejected:
+        transaction.reject(decision.failureCode, wallet.balance, at);
+        return undefined;
+      case WagerTransactionStatus.PendingReference:
+        transaction.markPendingReference(
+          new Date(at.getTime() + PENDING_REFERENCE_FIRST_RETRY_DELAY_MS),
+        );
+        return undefined;
+      case WagerTransactionStatus.Processed:
+        return this.applyMovement(wallet, transaction, lookup.reference, decision, at);
+    }
+  }
+
+  private async lookupReference(
+    { transactions }: Repositories,
+    transaction: WagerTransaction,
+  ): Promise<ReferenceLookup> {
+    const { referenceExternalTransactionId } = transaction;
+
+    if (!referenceExternalTransactionId) {
+      return { reference: undefined, alreadyReversed: false };
+    }
+
+    const reference = await transactions.findByProviderAndExternalId(
+      transaction.providerId,
+      referenceExternalTransactionId,
+    );
+
+    const alreadyReversed =
+      reference !== undefined && transaction.requiresReference()
+        ? await transactions.hasProcessedReversalOf(reference.id)
+        : false;
+
+    return { reference, alreadyReversed };
+  }
+
+  private applyMovement(
+    wallet: Wallet,
+    transaction: WagerTransaction,
+    reference: WagerTransaction | undefined,
+    decision: { referenceTransactionId: string | undefined },
+    at: Date,
+  ): WalletLedgerEntry | undefined {
+    const { referenceTransactionId } = decision;
+
     if (!transaction.affectsBalance()) {
-      transaction.markProcessed(undefined, wallet.balance, at);
+      transaction.markProcessed(referenceTransactionId, wallet.balance, at);
       return undefined;
     }
 
@@ -172,11 +221,11 @@ export class ProcessWagerTransaction {
 
     try {
       const entry =
-        transaction.ledgerDirectionFor() === LedgerDirection.Debit
+        transaction.ledgerDirectionFor(reference) === LedgerDirection.Debit
           ? wallet.debit(movement)
           : wallet.credit(movement);
 
-      transaction.markProcessed(undefined, wallet.balance, at);
+      transaction.markProcessed(referenceTransactionId, wallet.balance, at);
 
       return entry;
     } catch (error) {
@@ -243,6 +292,10 @@ export class ProcessWagerTransaction {
     if (transaction.status === WagerTransactionStatus.Rejected) {
       await publish(WagerTransactionRejected.from(transaction, contextFor()));
     }
+
+    if (transaction.status === WagerTransactionStatus.PendingReference) {
+      await publish(WagerTransactionPendingReference.from(transaction, contextFor()));
+    }
   }
 
   private resultOf(
@@ -263,18 +316,5 @@ export class ProcessWagerTransaction {
     return error.constraint === "idempotency_key"
       ? new IdempotencyConflictError(command.idempotencyKey)
       : new ExternalTransactionConflictError(command.providerId, command.externalTransactionId);
-  }
-
-  private assertSupported(command: ProcessWagerTransactionCommand): void {
-    if (
-      command.kind === WagerTransactionKind.Refund ||
-      command.kind === WagerTransactionKind.Rollback
-    ) {
-      throw new KindNotSupportedYetError(command.kind);
-    }
-
-    if (command.referenceExternalTransactionId !== undefined) {
-      throw new KindNotSupportedYetError(`${command.kind} com referenceExternalTransactionId`);
-    }
   }
 }

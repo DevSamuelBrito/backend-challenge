@@ -7,7 +7,11 @@ import {
   type DuplicatedConstraint,
   DuplicateTransactionError,
 } from "../application/wagering-errors";
-import type { WagerTransaction } from "../domain/wager-transaction";
+import {
+  type WagerTransaction,
+  WagerTransactionKind,
+  WagerTransactionStatus,
+} from "../domain/wager-transaction";
 import { wagerTransactionMapper } from "./wager-transaction.mapper";
 import { type WagerTransactionRecord, WagerTransactionSchema } from "./wager-transaction.schema";
 
@@ -34,13 +38,28 @@ export class MikroOrmWagerTransactionRepository implements WagerTransactionRepos
   }
 
   async save(transaction: WagerTransaction): Promise<void> {
-    const { status, referenceTransactionId, failureCode, balanceAfterAmount, processedAt } =
-      wagerTransactionMapper.toRecord(transaction);
+    const {
+      status,
+      referenceTransactionId,
+      failureCode,
+      balanceAfterAmount,
+      processedAt,
+      referenceAttempts,
+      nextAttemptAt,
+    } = wagerTransactionMapper.toRecord(transaction);
 
     const updated = await this.em.nativeUpdate(
       WagerTransactionSchema,
       { id: transaction.id },
-      { status, referenceTransactionId, failureCode, balanceAfterAmount, processedAt },
+      {
+        status,
+        referenceTransactionId,
+        failureCode,
+        balanceAfterAmount,
+        processedAt,
+        referenceAttempts,
+        nextAttemptAt,
+      },
     );
 
     if (updated === 0) {
@@ -61,6 +80,16 @@ export class MikroOrmWagerTransactionRepository implements WagerTransactionRepos
     externalTransactionId: string,
   ): Promise<WagerTransaction | undefined> {
     return this.load({ providerId, externalTransactionId });
+  }
+
+  async hasProcessedReversalOf(referenceTransactionId: string): Promise<boolean> {
+    const reversals = await this.em.count(WagerTransactionSchema, {
+      referenceTransactionId,
+      kind: { $in: [WagerTransactionKind.Refund, WagerTransactionKind.Rollback] },
+      status: WagerTransactionStatus.Processed,
+    });
+
+    return reversals > 0;
   }
 
   private async load(

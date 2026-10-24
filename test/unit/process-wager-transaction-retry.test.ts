@@ -4,7 +4,6 @@ import { parseProcessWagerTransactionCommand } from "../../src/modules/wagering/
 import {
   type DuplicatedConstraint,
   DuplicateTransactionError,
-  KindNotSupportedYetError,
 } from "../../src/modules/wagering/application/wagering-errors";
 import {
   ExternalTransactionConflictError,
@@ -139,22 +138,5 @@ describe("ProcessWagerTransaction: política de retry após violação de unicid
 
     await expect(useCase.execute(command())).rejects.toBe(boom);
     expect(state.runs).toBe(2);
-  });
-
-  test("tipos ainda não suportados são recusados antes de abrir qualquer transação", async () => {
-    const { state, useCase } = scriptedUnitOfWork([]);
-
-    for (const overrides of [
-      { kind: "REFUND", referenceExternalTransactionId: "bet-1" },
-      { kind: "ROLLBACK", referenceExternalTransactionId: "bet-1" },
-      { kind: "WIN", referenceExternalTransactionId: "bet-1" },
-      { kind: "LOSS", referenceExternalTransactionId: "bet-1" },
-    ]) {
-      await expect(useCase.execute(command(overrides))).rejects.toBeInstanceOf(
-        KindNotSupportedYetError,
-      );
-    }
-
-    expect(state.runs).toBe(0);
   });
 });

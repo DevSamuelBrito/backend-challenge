@@ -6,12 +6,7 @@ import {
   Logger,
 } from "@nestjs/common";
 import { LockTimeoutError } from "../../application/persistence-errors";
-import {
-  ConflictError,
-  DomainError,
-  NotFoundError,
-  NotImplementedYetError,
-} from "../../domain/domain-error";
+import { ConflictError, DomainError, NotFoundError } from "../../domain/domain-error";
 
 interface HttpResponse {
   status(code: number): HttpResponse;
@@ -117,7 +112,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return 409;
     }
 
-    return error instanceof NotImplementedYetError ? 501 : 400;
+    return 400;
   }
 
   private clientError(status: number, message: string): Translated {

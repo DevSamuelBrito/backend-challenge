@@ -90,6 +90,8 @@ export interface WagerTransactionState extends CreateWagerTransactionProps {
   failureCode?: FailureCode;
   balanceAfter?: Money;
   processedAt?: Date;
+  referenceAttempts?: number;
+  nextAttemptAt?: Date;
 }
 
 export class WagerTransaction {
@@ -112,6 +114,8 @@ export class WagerTransaction {
   private _failureCode: FailureCode | undefined;
   private _balanceAfter: Money | undefined;
   private _processedAt: Date | undefined;
+  private _referenceAttempts: number;
+  private _nextAttemptAt: Date | undefined;
 
   private constructor(state: WagerTransactionState) {
     this.id = state.id;
@@ -132,6 +136,8 @@ export class WagerTransaction {
     this._failureCode = state.failureCode;
     this._balanceAfter = state.balanceAfter;
     this._processedAt = state.processedAt;
+    this._referenceAttempts = state.referenceAttempts ?? 0;
+    this._nextAttemptAt = state.nextAttemptAt;
   }
 
   static create(props: CreateWagerTransactionProps): WagerTransaction {
@@ -208,15 +214,25 @@ export class WagerTransaction {
     return this._processedAt;
   }
 
+  get referenceAttempts(): number {
+    return this._referenceAttempts;
+  }
+
+  get nextAttemptAt(): Date | undefined {
+    return this._nextAttemptAt;
+  }
+
   markProcessed(referenceTransactionId: string | undefined, balanceAfter: Money, at: Date): void {
     this.transitionTo(WagerTransactionStatus.Processed);
     this._referenceTransactionId = referenceTransactionId;
     this._balanceAfter = balanceAfter;
     this._processedAt = at;
+    this._nextAttemptAt = undefined;
   }
 
-  markPendingReference(): void {
+  markPendingReference(nextAttemptAt: Date): void {
     this.transitionTo(WagerTransactionStatus.PendingReference);
+    this._nextAttemptAt = nextAttemptAt;
   }
 
   reject(code: FailureCode, balanceAfter: Money, at: Date): void {
@@ -224,12 +240,14 @@ export class WagerTransaction {
     this._failureCode = code;
     this._balanceAfter = balanceAfter;
     this._processedAt = at;
+    this._nextAttemptAt = undefined;
   }
 
   fail(code: FailureCode, at: Date): void {
     this.transitionTo(WagerTransactionStatus.Failed);
     this._failureCode = code;
     this._processedAt = at;
+    this._nextAttemptAt = undefined;
   }
 
   isTerminal(): boolean {

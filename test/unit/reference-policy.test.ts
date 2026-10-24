@@ -323,3 +323,152 @@ describe("evaluateReference: precedência das regras", () => {
     expect(decision).toEqual(pending);
   });
 });
+
+describe("evaluateReference: combinações da etapa 9", () => {
+  const reversalPairs: [WagerTransactionKind, WagerTransactionKind][] = [
+    [Refund, Bet],
+    [Rollback, Bet],
+    [Rollback, Win],
+    [Rollback, Refund],
+  ];
+
+  test.each(reversalPairs)(
+    "%s de %s já revertida é REFERENCE_ALREADY_REVERSED",
+    (kind, refKind) => {
+      const decision = evaluateReference(incoming(kind), {
+        reference: referenced({ kind: refKind }),
+        alreadyReversed: true,
+      });
+
+      expect(decision).toEqual(rejects(FailureCode.ReferenceAlreadyReversed));
+    },
+  );
+
+  test.each(reversalPairs)(
+    "%s de %s com valor diferente é REFERENCE_AMOUNT_MISMATCH",
+    (kind, refKind) => {
+      const decision = evaluateReference(incoming(kind, { money: brl("24.99") }), {
+        reference: referenced({ kind: refKind, money: brl("25.00") }),
+        alreadyReversed: false,
+      });
+
+      expect(decision).toEqual(rejects(FailureCode.ReferenceAmountMismatch));
+    },
+  );
+
+  test.each(reversalPairs)(
+    "%s de %s REJECTED ou FAILED é REFERENCE_NOT_PROCESSED",
+    (kind, refKind) => {
+      for (const status of [Rejected, Failed]) {
+        const decision = evaluateReference(incoming(kind), {
+          reference: referenced({ kind: refKind, status }),
+          alreadyReversed: false,
+        });
+
+        expect(decision).toEqual(rejects(FailureCode.ReferenceNotProcessed));
+      }
+    },
+  );
+
+  test.each(reversalPairs)(
+    "%s de %s ainda PENDING ou PENDING_REFERENCE continua pendente",
+    (kind, refKind) => {
+      for (const status of [Pending, PendingReference]) {
+        const decision = evaluateReference(incoming(kind), {
+          reference: referenced({ kind: refKind, status }),
+          alreadyReversed: false,
+        });
+
+        expect(decision).toEqual(pending);
+      }
+    },
+  );
+
+  test.each([[Win], [Loss]])(
+    "%s não compara valor nem olha reversão, mesmo com valores muito diferentes",
+    (kind) => {
+      const decision = evaluateReference(incoming(kind, { money: brl("0.01") }), {
+        reference: referenced({ money: brl("9999.99") }),
+        alreadyReversed: true,
+      });
+
+      expect(decision).toEqual(proceeds("tx-ref"));
+    },
+  );
+
+  test.each([[Win], [Loss]])(
+    "%s com referência REJECTED é REFERENCE_NOT_PROCESSED mesmo com valor diferente",
+    (kind) => {
+      const decision = evaluateReference(incoming(kind, { money: brl("1.00") }), {
+        reference: referenced({ status: Rejected, money: brl("25.00") }),
+        alreadyReversed: false,
+      });
+
+      expect(decision).toEqual(rejects(FailureCode.ReferenceNotProcessed));
+    },
+  );
+
+  test("a ordem completa das regras: tipo, wallet, player, moeda, rodada, valor, situação, reversão", () => {
+    const steps: [Partial<WagerTransactionState>, FailureCode][] = [
+      [{}, FailureCode.ReferenceKindNotAllowed],
+      [{ kind: Bet }, FailureCode.ReferenceWalletMismatch],
+      [{ kind: Bet, walletId: "wallet-1" }, FailureCode.ReferencePlayerMismatch],
+      [
+        { kind: Bet, walletId: "wallet-1", playerId: "player-1" },
+        FailureCode.ReferenceCurrencyMismatch,
+      ],
+      [
+        { kind: Bet, walletId: "wallet-1", playerId: "player-1", money: brl("1.00") },
+        FailureCode.ReferenceRoundMismatch,
+      ],
+      [
+        {
+          kind: Bet,
+          walletId: "wallet-1",
+          playerId: "player-1",
+          money: brl("1.00"),
+          roundId: "round-1",
+        },
+        FailureCode.ReferenceAmountMismatch,
+      ],
+      [
+        {
+          kind: Bet,
+          walletId: "wallet-1",
+          playerId: "player-1",
+          money: brl("25.00"),
+          roundId: "round-1",
+        },
+        FailureCode.ReferenceNotProcessed,
+      ],
+      [
+        {
+          kind: Bet,
+          walletId: "wallet-1",
+          playerId: "player-1",
+          money: brl("25.00"),
+          roundId: "round-1",
+          status: Processed,
+        },
+        FailureCode.ReferenceAlreadyReversed,
+      ],
+    ];
+
+    for (const [overrides, expected] of steps) {
+      const decision = evaluateReference(incoming(Refund), {
+        reference: referenced({
+          kind: Win,
+          walletId: "wallet-2",
+          playerId: "player-2",
+          roundId: "round-2",
+          money: usd("1.00"),
+          status: Rejected,
+          ...overrides,
+        }),
+        alreadyReversed: true,
+      });
+
+      expect(decision).toEqual(rejects(expected));
+    }
+  });
+});

@@ -145,7 +145,7 @@ describe("WagerTransaction: máquina de estados", () => {
         transaction.reject(FailureCode.InsufficientFunds, brl("1.00"), LATER);
         return;
       case WagerTransactionStatus.PendingReference:
-        transaction.markPendingReference();
+        transaction.markPendingReference(LATER);
         return;
       case WagerTransactionStatus.Failed:
         transaction.fail(FailureCode.ProcessingFailed, LATER);
@@ -209,7 +209,7 @@ describe("WagerTransaction: máquina de estados", () => {
   test("PENDING_REFERENCE não volta a PENDING_REFERENCE (o worker só conta tentativas)", () => {
     const transaction = aTransaction({ status: WagerTransactionStatus.PendingReference });
 
-    expect(() => transaction.markPendingReference()).toThrow(InvalidTransactionStateError);
+    expect(() => transaction.markPendingReference(LATER)).toThrow(InvalidTransactionStateError);
   });
 
   test("transição inválida não altera nenhum dado da transação", () => {
@@ -284,7 +284,7 @@ describe("WagerTransaction: efeito de cada transição", () => {
   test("markPendingReference não define resultado", () => {
     const transaction = aTransaction();
 
-    transaction.markPendingReference();
+    transaction.markPendingReference(LATER);
 
     expect(transaction.status).toBe(WagerTransactionStatus.PendingReference);
     expect(transaction.processedAt).toBeUndefined();
@@ -297,7 +297,7 @@ describe("WagerTransaction: efeito de cada transição", () => {
       referenceExternalTransactionId: "ext-0",
     });
 
-    transaction.markPendingReference();
+    transaction.markPendingReference(LATER);
     transaction.markProcessed("tx-0", brl("125.00"), LATER);
 
     expect(transaction.status).toBe(WagerTransactionStatus.Processed);
@@ -420,4 +420,58 @@ describe("WagerTransaction.ledgerDirectionFor", () => {
       expect((error as InvalidWagerTransactionError).code).toBe("WAGER_INVALID_REFERENCE_KIND");
     }
   });
+});
+
+describe("WagerTransaction: tentativas de referência (preparação da etapa 10)", () => {
+  const NEXT = new Date("2026-01-01T12:00:01.000Z");
+
+  test("uma transação nova começa com 0 tentativas e sem próxima tentativa", () => {
+    const transaction = aTransaction();
+
+    expect(transaction.referenceAttempts).toBe(0);
+    expect(transaction.nextAttemptAt).toBeUndefined();
+  });
+
+  test("markPendingReference agenda a próxima tentativa e mantém 0 tentativas", () => {
+    const transaction = aTransaction();
+
+    transaction.markPendingReference(NEXT);
+
+    expect(transaction.nextAttemptAt).toEqual(NEXT);
+    expect(transaction.referenceAttempts).toBe(0);
+  });
+
+  test("rehydrate preserva as tentativas e a próxima tentativa", () => {
+    const transaction = aTransaction({
+      status: WagerTransactionStatus.PendingReference,
+      referenceAttempts: 3,
+      nextAttemptAt: NEXT,
+    });
+
+    expect(transaction.referenceAttempts).toBe(3);
+    expect(transaction.nextAttemptAt).toEqual(NEXT);
+  });
+
+  test.each([
+    ["markProcessed", (t: WagerTransaction) => t.markProcessed("tx-0", brl("1.00"), LATER)],
+    [
+      "reject",
+      (t: WagerTransaction) => t.reject(FailureCode.ReferenceNotFound, brl("1.00"), LATER),
+    ],
+    ["fail", (t: WagerTransaction) => t.fail(FailureCode.ProcessingFailed, LATER)],
+  ])(
+    "sair de PENDING_REFERENCE por %s limpa a próxima tentativa e mantém as tentativas",
+    (_, resolve) => {
+      const transaction = aTransaction({
+        status: WagerTransactionStatus.PendingReference,
+        referenceAttempts: 4,
+        nextAttemptAt: NEXT,
+      });
+
+      resolve(transaction);
+
+      expect(transaction.nextAttemptAt).toBeUndefined();
+      expect(transaction.referenceAttempts).toBe(4);
+    },
+  );
 });

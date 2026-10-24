@@ -843,45 +843,4 @@ describe("POST /wagering/transactions: BET, WIN e LOSS (HTTP e Postgres reais)",
       expect(response.status).toBe(400);
     });
   });
-
-  describe("tipos ainda não suportados (etapa 9): 501 KIND_NOT_SUPPORTED_YET", () => {
-    const unsupported: [string, Partial<WagerPayload>][] = [
-      ["REFUND", { kind: "REFUND", referenceExternalTransactionId: "bet-1" }],
-      ["ROLLBACK", { kind: "ROLLBACK", referenceExternalTransactionId: "bet-1" }],
-      ["WIN com referência", { kind: "WIN", referenceExternalTransactionId: "bet-1" }],
-      ["LOSS com referência", { kind: "LOSS", referenceExternalTransactionId: "bet-1" }],
-    ];
-
-    for (const [name, overrides] of unsupported) {
-      test(`${name}: 501 e nada é persistido`, async () => {
-        const target = await wallet("100.00");
-        const before = await tableCounts(api.db.client);
-
-        const { result } = await call(target, overrides);
-
-        expect(result.status).toBe(501);
-        expect(result.body).toEqual({
-          code: "KIND_NOT_SUPPORTED_YET",
-          message: expect.any(String),
-        });
-        expect(await tableCounts(api.db.client)).toEqual(before);
-        expect(await walletSnapshot(api.db.client, target.id)).toEqual({
-          balance: "100.00",
-          version: 1,
-        });
-      });
-    }
-
-    test("a validação vem antes do 501: REFUND com valor inválido é 400", async () => {
-      const target = await wallet("100.00");
-
-      const { result } = await call(target, {
-        kind: "REFUND",
-        referenceExternalTransactionId: "bet-1",
-        money: money("0.00"),
-      });
-
-      expect(result.status).toBe(400);
-    });
-  });
 });

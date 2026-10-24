@@ -31,8 +31,8 @@ export const wagerTransactionMapper = {
       status: transaction.status,
       failureCode: transaction.failureCode ?? null,
       balanceAfterAmount: transaction.balanceAfter ? moneyToColumn(transaction.balanceAfter) : null,
-      referenceAttempts: 0,
-      nextAttemptAt: null,
+      referenceAttempts: transaction.referenceAttempts,
+      nextAttemptAt: transaction.nextAttemptAt ?? null,
       createdAt: transaction.createdAt,
       processedAt: transaction.processedAt ?? null,
     };
@@ -64,6 +64,8 @@ export const wagerTransactionMapper = {
           ? undefined
           : moneyFromColumn(record.balanceAfterAmount, walletCurrency),
       processedAt: record.processedAt ?? undefined,
+      referenceAttempts: record.referenceAttempts,
+      nextAttemptAt: record.nextAttemptAt ?? undefined,
     });
   },
 };
