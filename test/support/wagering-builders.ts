@@ -5,7 +5,13 @@ import {
   type WagerTransactionState,
   WagerTransactionStatus,
 } from "../../src/modules/wagering/domain/wager-transaction";
+import { LedgerDirection } from "../../src/modules/wallet/domain/ledger-direction";
+import {
+  type LedgerEntryState,
+  WalletLedgerEntry,
+} from "../../src/modules/wallet/domain/wallet-ledger-entry";
 import { Money } from "../../src/shared/domain/money";
+import type { EventContext } from "../../src/shared/events/integration-event";
 
 export const AT = new Date("2026-01-01T12:00:00.000Z");
 
@@ -47,4 +53,29 @@ export function aProcessed(overrides: Partial<WagerTransactionState> = {}): Wage
     processedAt: AT,
     ...overrides,
   });
+}
+
+export function aLedgerEntry(overrides: Partial<LedgerEntryState> = {}): WalletLedgerEntry {
+  return WalletLedgerEntry.create({
+    id: "entry-1",
+    walletId: "wallet-1",
+    transactionId: "tx-1",
+    direction: LedgerDirection.Debit,
+    money: brl("80.00"),
+    balanceBefore: brl("100.00"),
+    balanceAfter: brl("20.00"),
+    walletVersion: 2,
+    createdAt: AT,
+    ...overrides,
+  });
+}
+
+export function aContext(overrides: Partial<EventContext> = {}): EventContext {
+  return {
+    eventId: "evt-1",
+    correlationId: "corr-1",
+    causationId: "cause-1",
+    occurredAt: AT,
+    ...overrides,
+  };
 }
