@@ -1,5 +1,5 @@
+import { InvalidRequestError } from "../../../shared/application/invalid-request-error";
 import { Money, type MoneyProps } from "../../../shared/domain/money";
-import { InvalidRequestError } from "../../../shared/infrastructure/http/invalid-request-error";
 import type { OpenWalletCommand } from "../application/open-wallet";
 
 function isRecord(value: unknown): value is Record<string, unknown> {

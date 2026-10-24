@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from "@nestjs/common";
-import { parseUuid } from "../../../shared/infrastructure/http/parse-uuid";
+import { parseUuid } from "../../../shared/application/parse-uuid";
 import { AuthGuard } from "../../auth/auth.guard";
 import { GetWallet } from "../application/get-wallet";
 import { OpenWallet } from "../application/open-wallet";

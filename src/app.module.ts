@@ -3,6 +3,7 @@ import { APP_FILTER } from "@nestjs/core";
 import { ConfigModule } from "./config/config.module";
 import type { AppConfig } from "./config/env";
 import { HealthModule } from "./modules/health/health.module";
+import { WageringModule } from "./modules/wagering/wagering.module";
 import { WalletModule } from "./modules/wallet/wallet.module";
 import { DatabaseModule } from "./shared/infrastructure/database/database.module";
 import { PersistenceModule } from "./shared/infrastructure/database/persistence.module";
@@ -26,6 +27,7 @@ export class AppModule {
         SqsModule,
         HealthModule,
         WalletModule,
+        WageringModule,
       ],
       providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
     };

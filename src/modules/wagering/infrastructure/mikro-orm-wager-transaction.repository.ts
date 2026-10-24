@@ -1,16 +1,36 @@
 import type { EntityManager } from "@mikro-orm/core";
 import { AggregateNotFoundError } from "../../../shared/application/persistence-errors";
+import { isUniqueViolation } from "../../../shared/infrastructure/database/violations";
 import { WalletSchema } from "../../wallet/infrastructure/wallet.schema";
 import type { WagerTransactionRepository } from "../application/wager-transaction.repository";
+import {
+  type DuplicatedConstraint,
+  DuplicateTransactionError,
+} from "../application/wagering-errors";
 import type { WagerTransaction } from "../domain/wager-transaction";
 import { wagerTransactionMapper } from "./wager-transaction.mapper";
 import { type WagerTransactionRecord, WagerTransactionSchema } from "./wager-transaction.schema";
+
+const DUPLICATE_CONSTRAINTS: readonly [string, DuplicatedConstraint][] = [
+  ["wager_transactions_idempotency_key_key", "idempotency_key"],
+  ["wager_transactions_provider_external_key", "external_transaction"],
+];
 
 export class MikroOrmWagerTransactionRepository implements WagerTransactionRepository {
   constructor(private readonly em: EntityManager) {}
 
   async add(transaction: WagerTransaction): Promise<void> {
-    await this.em.insert(WagerTransactionSchema, wagerTransactionMapper.toRecord(transaction));
+    try {
+      await this.em.insert(WagerTransactionSchema, wagerTransactionMapper.toRecord(transaction));
+    } catch (error) {
+      for (const [constraint, duplicated] of DUPLICATE_CONSTRAINTS) {
+        if (isUniqueViolation(error, constraint)) {
+          throw new DuplicateTransactionError(duplicated);
+        }
+      }
+
+      throw error;
+    }
   }
 
   async save(transaction: WagerTransaction): Promise<void> {

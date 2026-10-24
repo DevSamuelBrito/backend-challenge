@@ -12,10 +12,10 @@ import {
   WalletAlreadyExistsError,
   WalletNotFoundError,
 } from "../../src/modules/wallet/domain/wallet-errors";
+import { InvalidRequestError } from "../../src/shared/application/invalid-request-error";
 import { LockTimeoutError } from "../../src/shared/application/persistence-errors";
 import { InvalidMoneyError, MoneyOutOfRangeError } from "../../src/shared/domain/money";
 import { AllExceptionsFilter } from "../../src/shared/infrastructure/http/all-exceptions.filter";
-import { InvalidRequestError } from "../../src/shared/infrastructure/http/invalid-request-error";
 
 interface Captured {
   status: number;

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { parseOpenWalletRequest } from "../../src/modules/wallet/http/open-wallet.request";
+import { InvalidRequestError } from "../../src/shared/application/invalid-request-error";
+import { parseUuid } from "../../src/shared/application/parse-uuid";
 import { InvalidMoneyError, MoneyOutOfRangeError } from "../../src/shared/domain/money";
-import { InvalidRequestError } from "../../src/shared/infrastructure/http/invalid-request-error";
-import { parseUuid } from "../../src/shared/infrastructure/http/parse-uuid";
 
 const valid = (overrides: Record<string, unknown> = {}) => ({
   playerId: "player-1",

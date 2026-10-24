@@ -20,19 +20,35 @@ export interface ProviderOverride {
 export interface WalletApiOptions {
   providers?: readonly ProviderOverride[];
   wrapUnitOfWork?: (real: UnitOfWork) => UnitOfWork;
+  lockTimeoutMs?: number;
 }
 
-export interface WalletApi {
-  db: TestDatabase;
+export interface AppInstance {
   app: INestApplication;
   url: string;
   http: HttpClient;
   close(): Promise<void>;
 }
 
-export async function startWalletApi(options: WalletApiOptions = {}): Promise<WalletApi> {
-  const db = await createMigratedDatabase();
-  const config = testConfig({ DATABASE_URL: db.url });
+export interface WalletApi extends AppInstance {
+  db: TestDatabase;
+}
+
+export interface Cluster {
+  db: TestDatabase;
+  instances: AppInstance[];
+  http: HttpClient[];
+  close(): Promise<void>;
+}
+
+export async function startInstance(
+  db: TestDatabase,
+  options: WalletApiOptions = {},
+): Promise<AppInstance> {
+  const config = testConfig({
+    DATABASE_URL: db.url,
+    ...(options.lockTimeoutMs && { DB_LOCK_TIMEOUT_MS: String(options.lockTimeoutMs) }),
+  });
 
   let builder = Test.createTestingModule({ imports: [AppModule.register(config)] });
 
@@ -59,13 +75,38 @@ export async function startWalletApi(options: WalletApiOptions = {}): Promise<Wa
   await app.listen(0, "127.0.0.1");
   const url = await app.getUrl();
 
+  return { app, url, http: createHttpClient(url), close: () => app.close() };
+}
+
+export async function startWalletApi(options: WalletApiOptions = {}): Promise<WalletApi> {
+  const db = await createMigratedDatabase();
+  const instance = await startInstance(db, options);
+
+  return {
+    ...instance,
+    db,
+    close: async () => {
+      await instance.close();
+      await db.close();
+    },
+  };
+}
+
+export async function startCluster(
+  instanceCount: number,
+  options: WalletApiOptions = {},
+): Promise<Cluster> {
+  const db = await createMigratedDatabase();
+  const instances = await Promise.all(
+    Array.from({ length: instanceCount }, () => startInstance(db, options)),
+  );
+
   return {
     db,
-    app,
-    url,
-    http: createHttpClient(url),
+    instances,
+    http: instances.map((instance) => instance.http),
     close: async () => {
-      await app.close();
+      await Promise.all(instances.map((instance) => instance.close()));
       await db.close();
     },
   };
