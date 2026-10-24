@@ -1,4 +1,4 @@
-import { CurrencyMismatchError, type Money } from "../../../shared/domain/money";
+import { CurrencyMismatchError, Money } from "../../../shared/domain/money";
 import { LedgerDirection } from "./ledger-direction";
 import { InsufficientFundsError, InvalidWalletError } from "./wallet-errors";
 import { WalletLedgerEntry } from "./wallet-ledger-entry";
@@ -17,7 +17,14 @@ export interface OpenWalletProps {
   id: string;
   playerId: string;
   initialBalance: Money;
+  openingTransactionId: string;
+  openingEntryId: string;
   at: Date;
+}
+
+export interface OpenedWallet {
+  wallet: Wallet;
+  openingEntry: WalletLedgerEntry | undefined;
 }
 
 export interface MovementProps {
@@ -38,20 +45,40 @@ export class Wallet {
     private _updatedAt: Date,
   ) {}
 
-  static open(props: OpenWalletProps): Wallet {
-    if (props.initialBalance.isNegative()) {
+  static open(props: OpenWalletProps): OpenedWallet {
+    const { initialBalance } = props;
+
+    if (initialBalance.isNegative()) {
       throw new InvalidWalletError("WALLET_INVALID_BALANCE", "Saldo inicial não pode ser negativo");
     }
 
-    return new Wallet(
+    const wallet = new Wallet(
       props.id,
       props.playerId,
-      props.initialBalance.currency,
-      props.initialBalance,
+      initialBalance.currency,
+      initialBalance,
       1,
       props.at,
       props.at,
     );
+
+    if (!initialBalance.isPositive()) {
+      return { wallet, openingEntry: undefined };
+    }
+
+    const openingEntry = WalletLedgerEntry.create({
+      id: props.openingEntryId,
+      walletId: props.id,
+      transactionId: props.openingTransactionId,
+      direction: LedgerDirection.Credit,
+      money: initialBalance,
+      balanceBefore: Money.zero(initialBalance.currency),
+      balanceAfter: initialBalance,
+      walletVersion: 1,
+      createdAt: props.at,
+    });
+
+    return { wallet, openingEntry };
   }
 
   static rehydrate(state: WalletState): Wallet {

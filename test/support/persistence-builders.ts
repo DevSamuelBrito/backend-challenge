@@ -19,8 +19,10 @@ export function aNewWallet(overrides: { balance?: Money; playerId?: string } = {
     id: randomUUID(),
     playerId: overrides.playerId ?? `player-${randomUUID()}`,
     initialBalance: overrides.balance ?? brl("100.00"),
+    openingTransactionId: randomUUID(),
+    openingEntryId: randomUUID(),
     at: AT,
-  });
+  }).wallet;
 }
 
 export function aNewTransaction(

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Money } from "../../../shared/domain/money";
 import { LedgerDirection } from "../../wallet/domain/ledger-direction";
 import { FailureCode } from "./failure-code";
@@ -39,6 +40,33 @@ const ALLOWED_TRANSITIONS: Record<WagerTransactionStatus, readonly WagerTransact
   [WagerTransactionStatus.Rejected]: [],
   [WagerTransactionStatus.Failed]: [],
 };
+
+export const OPENING_PROVIDER_ID = "internal";
+export const OPENING_ROUND_AND_GAME_ID = "opening";
+
+export interface CreateOpeningTransactionProps {
+  id: string;
+  walletId: string;
+  playerId: string;
+  money: Money;
+  createdAt: Date;
+}
+
+function openingPayloadHash(props: CreateOpeningTransactionProps, idempotencyKey: string): string {
+  const canonical = JSON.stringify({
+    externalTransactionId: props.walletId,
+    gameId: OPENING_ROUND_AND_GAME_ID,
+    idempotencyKey,
+    kind: WagerTransactionKind.Opening,
+    money: props.money.toJSON(),
+    playerId: props.playerId,
+    providerId: OPENING_PROVIDER_ID,
+    roundId: OPENING_ROUND_AND_GAME_ID,
+    walletId: props.walletId,
+  });
+
+  return createHash("sha256").update(canonical).digest("hex");
+}
 
 export interface CreateWagerTransactionProps {
   id: string;
@@ -125,6 +153,35 @@ export class WagerTransaction {
     }
 
     return new WagerTransaction({ ...props, status: WagerTransactionStatus.Pending });
+  }
+
+  static createOpening(props: CreateOpeningTransactionProps): WagerTransaction {
+    if (!props.money.isPositive()) {
+      throw new InvalidWagerTransactionError(
+        "WAGER_AMOUNT_NOT_POSITIVE",
+        "Transação OPENING só existe para saldo inicial positivo",
+      );
+    }
+
+    const idempotencyKey = `opening:${props.walletId}`;
+
+    return new WagerTransaction({
+      id: props.id,
+      providerId: OPENING_PROVIDER_ID,
+      externalTransactionId: props.walletId,
+      idempotencyKey,
+      payloadHash: openingPayloadHash(props, idempotencyKey),
+      walletId: props.walletId,
+      playerId: props.playerId,
+      roundId: OPENING_ROUND_AND_GAME_ID,
+      gameId: OPENING_ROUND_AND_GAME_ID,
+      kind: WagerTransactionKind.Opening,
+      money: props.money,
+      createdAt: props.createdAt,
+      status: WagerTransactionStatus.Processed,
+      balanceAfter: props.money,
+      processedAt: props.createdAt,
+    });
   }
 
   static rehydrate(state: WagerTransactionState): WagerTransaction {

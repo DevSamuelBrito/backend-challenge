@@ -37,6 +37,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.6.2",
     "@mikro-orm/cli": "^7.2.5",
+    "@nestjs/testing": "^12.2.0",
     "@types/bun": "^1.4.4",
     "@types/pg": "^8.23.1",
     "pg": "^8.23.1",

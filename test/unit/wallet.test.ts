@@ -12,13 +12,19 @@ import { AT, brl, usd } from "../support/wagering-builders";
 
 const LATER = new Date("2026-01-02T08:30:00.000Z");
 
-function openWallet(initialBalance = "100.00"): Wallet {
-  return Wallet.open({
-    id: "wallet-1",
+function openProps(initialBalance: Money, id = "wallet-1") {
+  return {
+    id,
     playerId: "player-1",
-    initialBalance: brl(initialBalance),
+    initialBalance,
+    openingTransactionId: "opening-tx-1",
+    openingEntryId: "opening-entry-1",
     at: AT,
-  });
+  };
+}
+
+function openWallet(initialBalance = "100.00"): Wallet {
+  return Wallet.open(openProps(brl(initialBalance))).wallet;
 }
 
 let sequence = 0;
@@ -48,22 +54,59 @@ describe("Wallet.open", () => {
   });
 
   test("é multi-moeda: a moeda vem do saldo inicial", () => {
-    const wallet = Wallet.open({
-      id: "wallet-2",
-      playerId: "player-1",
-      initialBalance: usd("5.00"),
-      at: AT,
-    });
+    const { wallet, openingEntry } = Wallet.open(openProps(usd("5.00"), "wallet-2"));
 
     expect(wallet.currency).toBe("USD");
+    expect(openingEntry?.money.currency).toBe("USD");
   });
 
   test("rejeita saldo inicial negativo", () => {
     const negative = brl("10.00").negate();
 
-    expect(() => Wallet.open({ id: "w", playerId: "p", initialBalance: negative, at: AT })).toThrow(
-      InvalidWalletError,
-    );
+    expect(() => Wallet.open(openProps(negative))).toThrow(InvalidWalletError);
+  });
+});
+
+describe("Wallet.open: lançamento de abertura", () => {
+  test("saldo positivo devolve a wallet e um CREDIT de abertura com walletVersion 1", () => {
+    const { wallet, openingEntry } = Wallet.open(openProps(brl("1000.00")));
+
+    expect(openingEntry).toBeDefined();
+    expect(openingEntry?.id).toBe("opening-entry-1");
+    expect(openingEntry?.walletId).toBe(wallet.id);
+    expect(openingEntry?.transactionId).toBe("opening-tx-1");
+    expect(openingEntry?.direction).toBe(LedgerDirection.Credit);
+    expect(openingEntry?.money.toJSON()).toEqual({ amount: "1000.00", currency: "BRL" });
+    expect(openingEntry?.balanceBefore.toJSON()).toEqual({ amount: "0.00", currency: "BRL" });
+    expect(openingEntry?.balanceAfter.toJSON()).toEqual({ amount: "1000.00", currency: "BRL" });
+    expect(openingEntry?.walletVersion).toBe(1);
+    expect(openingEntry?.createdAt).toBe(AT);
+    expect(openingEntry?.isBalanced()).toBe(true);
+  });
+
+  test("o lançamento fecha com o saldo da wallet e com a mesma version", () => {
+    const { wallet, openingEntry } = Wallet.open(openProps(brl("42.42")));
+
+    expect(openingEntry?.balanceAfter.equals(wallet.balance)).toBe(true);
+    expect(openingEntry?.walletVersion).toBe(wallet.version);
+  });
+
+  test("saldo zero devolve só a wallet, sem lançamento, e a version continua 1", () => {
+    const { wallet, openingEntry } = Wallet.open(openProps(brl("0.00")));
+
+    expect(openingEntry).toBeUndefined();
+    expect(wallet.version).toBe(1);
+    expect(wallet.balance.isZero()).toBe(true);
+  });
+
+  test("a primeira movimentação depois da abertura usa a version 2, com ou sem lançamento de abertura", () => {
+    for (const initial of ["100.00", "0.00"]) {
+      const { wallet } = Wallet.open(openProps(brl(initial)));
+      const entry = wallet.credit(movement(brl("5.00")));
+
+      expect(entry.walletVersion).toBe(2);
+      expect(wallet.version).toBe(2);
+    }
   });
 });
 

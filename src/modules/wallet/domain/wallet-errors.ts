@@ -1,4 +1,20 @@
-import { DomainError } from "../../../shared/domain/domain-error";
+import { ConflictError, DomainError, NotFoundError } from "../../../shared/domain/domain-error";
+
+export class WalletAlreadyExistsError extends ConflictError {
+  readonly code = "WALLET_ALREADY_EXISTS";
+
+  constructor(playerId: string, currency: string) {
+    super(`Já existe uma wallet em ${currency} para o jogador ${playerId}`);
+  }
+}
+
+export class WalletNotFoundError extends NotFoundError {
+  readonly code = "WALLET_NOT_FOUND";
+
+  constructor(walletId: string) {
+    super(`Wallet ${walletId} não existe`);
+  }
+}
 
 export class InsufficientFundsError extends DomainError {
   readonly code = "INSUFFICIENT_FUNDS";

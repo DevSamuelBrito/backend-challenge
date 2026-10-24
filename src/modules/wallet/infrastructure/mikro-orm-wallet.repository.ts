@@ -1,15 +1,27 @@
 import { type EntityManager, LockMode } from "@mikro-orm/core";
 import { AggregateNotFoundError } from "../../../shared/application/persistence-errors";
+import { isUniqueViolation } from "../../../shared/infrastructure/database/violations";
 import type { WalletRepository } from "../application/wallet.repository";
 import type { Wallet } from "../domain/wallet";
+import { WalletAlreadyExistsError } from "../domain/wallet-errors";
 import { walletMapper } from "./wallet.mapper";
 import { type WalletRecord, WalletSchema } from "./wallet.schema";
+
+const PLAYER_CURRENCY_CONSTRAINT = "wallets_player_currency_key";
 
 export class MikroOrmWalletRepository implements WalletRepository {
   constructor(private readonly em: EntityManager) {}
 
   async add(wallet: Wallet): Promise<void> {
-    await this.em.insert(WalletSchema, walletMapper.toRecord(wallet));
+    try {
+      await this.em.insert(WalletSchema, walletMapper.toRecord(wallet));
+    } catch (error) {
+      if (isUniqueViolation(error, PLAYER_CURRENCY_CONSTRAINT)) {
+        throw new WalletAlreadyExistsError(wallet.playerId, wallet.currency);
+      }
+
+      throw error;
+    }
   }
 
   async save(wallet: Wallet): Promise<void> {

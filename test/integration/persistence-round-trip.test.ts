@@ -13,6 +13,8 @@ import {
   WagerTransactionStatus,
 } from "../../src/modules/wagering/domain/wager-transaction";
 import { LedgerDirection } from "../../src/modules/wallet/domain/ledger-direction";
+import { Wallet } from "../../src/modules/wallet/domain/wallet";
+import { WalletAlreadyExistsError } from "../../src/modules/wallet/domain/wallet-errors";
 import { ledgerEntryMapper } from "../../src/modules/wallet/infrastructure/ledger-entry.mapper";
 import { LedgerEntrySchema } from "../../src/modules/wallet/infrastructure/ledger-entry.schema";
 import { MikroOrmLedgerRepository } from "../../src/modules/wallet/infrastructure/mikro-orm-ledger.repository";
@@ -133,6 +135,46 @@ describe("persistência: round-trip de cada agregado no Postgres real", () => {
       expect(reread.plain?.balance.toJSON().amount).toBe("75.00");
       expect(reread.locked?.version).toBe(2);
       expect(reread.byPlayer?.updatedAt).toEqual(LATER);
+    });
+
+    test("add com o mesmo jogador e moeda lança WalletAlreadyExistsError", async () => {
+      const wallet = await seedWallet();
+      const duplicate = aNewWallet({ playerId: wallet.playerId });
+
+      await expect(h.uow.run(({ wallets }) => wallets.add(duplicate))).rejects.toBeInstanceOf(
+        WalletAlreadyExistsError,
+      );
+    });
+
+    test("add com o mesmo id mas outro jogador não é confundido com wallet duplicada", async () => {
+      const wallet = await seedWallet();
+      const sameId = Wallet.rehydrate({
+        id: wallet.id,
+        playerId: `outro-${randomUUID()}`,
+        currency: "BRL",
+        balance: brl("1.00"),
+        version: 1,
+        createdAt: AT,
+        updatedAt: AT,
+      });
+
+      const failure = await h.uow
+        .run(({ wallets }) => wallets.add(sameId))
+        .catch((e: unknown) => e);
+
+      expect(failure).not.toBeInstanceOf(WalletAlreadyExistsError);
+      expect((failure as { constraint?: string }).constraint).toBe("wallets_pkey");
+    });
+
+    test("a mesma wallet em moeda diferente é aceita", async () => {
+      const wallet = await seedWallet(brl("10.00"));
+      const other = aNewWallet({ playerId: wallet.playerId, balance: usd("10.00") });
+
+      await h.uow.run(({ wallets }) => wallets.add(other));
+
+      expect(
+        await h.uow.run(({ wallets }) => wallets.findByPlayerAndCurrency(wallet.playerId, "USD")),
+      ).toEqual(other);
     });
 
     test("save de uma wallet que não existe falha com AggregateNotFoundError", async () => {
