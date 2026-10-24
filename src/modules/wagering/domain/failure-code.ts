@@ -1,0 +1,16 @@
+export enum FailureCode {
+  InsufficientFunds = "INSUFFICIENT_FUNDS",
+  ReversalInsufficientFunds = "REVERSAL_INSUFFICIENT_FUNDS",
+  CurrencyMismatch = "CURRENCY_MISMATCH",
+  WalletPlayerMismatch = "WALLET_PLAYER_MISMATCH",
+  ReferenceNotFound = "REFERENCE_NOT_FOUND",
+  ReferenceKindNotAllowed = "REFERENCE_KIND_NOT_ALLOWED",
+  ReferenceRoundMismatch = "REFERENCE_ROUND_MISMATCH",
+  ReferenceWalletMismatch = "REFERENCE_WALLET_MISMATCH",
+  ReferencePlayerMismatch = "REFERENCE_PLAYER_MISMATCH",
+  ReferenceCurrencyMismatch = "REFERENCE_CURRENCY_MISMATCH",
+  ReferenceAmountMismatch = "REFERENCE_AMOUNT_MISMATCH",
+  ReferenceAlreadyReversed = "REFERENCE_ALREADY_REVERSED",
+  ReferenceNotProcessed = "REFERENCE_NOT_PROCESSED",
+  ProcessingFailed = "PROCESSING_FAILED",
+}
