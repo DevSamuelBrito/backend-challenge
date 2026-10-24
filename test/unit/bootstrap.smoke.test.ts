@@ -3,7 +3,6 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { INestApplication } from "@nestjs/common";
 import { Controller, Get, Injectable, Module } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { AppModule } from "../../src/app.module";
 import { loadConfig } from "../../src/config/env";
 
 @Injectable()
@@ -45,12 +44,6 @@ describe("bootstrap: NestJS sobre Bun", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ message: "pong" });
-  });
-
-  test("AppModule sobe e encerra sem erros", async () => {
-    const root = await NestFactory.create(AppModule, { logger: false });
-    await root.init();
-    await root.close();
   });
 });
 

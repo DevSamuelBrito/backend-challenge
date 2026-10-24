@@ -7,14 +7,27 @@
     "start": "bun run src/main.ts",
     "dev": "bun --watch run src/main.ts",
     "test": "bun test",
+    "test:unit": "bun test test/unit",
+    "test:integration": "bun test test/integration",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
+    "migration:create": "bunx --bun mikro-orm migration:create",
+    "migration:up": "bunx --bun mikro-orm migration:up",
+    "migration:down": "bunx --bun mikro-orm migration:down",
+    "migration:list": "bunx --bun mikro-orm migration:list",
     "infra:up": "docker compose up -d --wait",
     "infra:down": "docker compose down -v",
-    "infra:queues": "docker compose exec localstack awslocal sqs list-queues"
+    "infra:queues": "docker compose exec localstack awslocal sqs list-queues",
+    "infra:test:up": "docker compose -f docker-compose.test.yml up -d --wait",
+    "infra:test:down": "docker compose -f docker-compose.test.yml down -v"
   },
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.1156.0",
+    "@mikro-orm/core": "^7.2.5",
+    "@mikro-orm/migrations": "^7.2.5",
+    "@mikro-orm/nestjs": "^7.1.0",
+    "@mikro-orm/postgresql": "^7.2.5",
     "@nestjs/common": "^12.2.0",
     "@nestjs/core": "^12.2.0",
     "@nestjs/platform-express": "^12.2.0",
@@ -23,6 +36,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.2",
+    "@mikro-orm/cli": "^7.2.5",
     "@types/bun": "^1.4.4",
     "typescript": "~5.9.3"
   }

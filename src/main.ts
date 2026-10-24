@@ -5,7 +5,7 @@ import { loadConfig } from "./config/env";
 
 async function bootstrap(): Promise<void> {
   const config = loadConfig();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule.register(config));
   app.enableShutdownHooks();
   await app.listen(config.port);
 }

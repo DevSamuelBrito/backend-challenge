@@ -2,9 +2,21 @@ export type AppRole = "api" | "consumer" | "outbox" | "pending-worker";
 
 const ALL_ROLES: readonly AppRole[] = ["api", "consumer", "outbox", "pending-worker"];
 
+export interface SqsConfig {
+  region: string;
+  endpoint: string | undefined;
+  accessKeyId: string;
+  secretAccessKey: string;
+  transactionsQueue: string;
+  transactionsDlq: string;
+  eventsQueue: string;
+}
+
 export interface AppConfig {
   port: number;
   roles: readonly AppRole[];
+  databaseUrl: string;
+  sqs: SqsConfig;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
@@ -25,5 +37,18 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     throw new Error(`APP_ROLES contém papéis desconhecidos: ${unknown.join(", ")}`);
   }
 
-  return { port, roles: rawRoles as AppRole[] };
+  return {
+    port,
+    roles: rawRoles as AppRole[],
+    databaseUrl: env.DATABASE_URL ?? "postgres://wagering:wagering@localhost:5432/wagering",
+    sqs: {
+      region: env.AWS_REGION ?? "us-east-1",
+      endpoint: env.SQS_ENDPOINT ?? "http://localhost:4566",
+      accessKeyId: env.AWS_ACCESS_KEY_ID ?? "test",
+      secretAccessKey: env.AWS_SECRET_ACCESS_KEY ?? "test",
+      transactionsQueue: env.SQS_TRANSACTIONS_QUEUE ?? "wager-transactions.fifo",
+      transactionsDlq: env.SQS_TRANSACTIONS_DLQ ?? "wager-transactions-dlq.fifo",
+      eventsQueue: env.SQS_EVENTS_QUEUE ?? "wager-events.fifo",
+    },
+  };
 }
