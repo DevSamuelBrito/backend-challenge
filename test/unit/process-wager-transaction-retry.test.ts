@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { ProcessWagerTransaction } from "../../src/modules/wagering/application/process-wager-transaction";
 import { parseProcessWagerTransactionCommand } from "../../src/modules/wagering/application/process-wager-transaction.command";
+import { WagerSettlement } from "../../src/modules/wagering/application/wager-settlement";
 import {
   type DuplicatedConstraint,
   DuplicateTransactionError,
@@ -46,10 +47,13 @@ function scriptedUnitOfWork(outcomes: (() => unknown)[]) {
 }
 
 function build(unitOfWork: UnitOfWork) {
+  const ids = new SequentialIdGenerator();
+
   return new ProcessWagerTransaction(
     unitOfWork,
     new FixedClock(new Date("2026-01-01T00:00:00.000Z")),
-    new SequentialIdGenerator(),
+    ids,
+    new WagerSettlement(ids),
   );
 }
 

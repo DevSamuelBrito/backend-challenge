@@ -9,6 +9,23 @@ export class FixedClock implements Clock {
   }
 }
 
+export class ControlledClock implements Clock {
+  constructor(private current: Date) {}
+
+  now(): Date {
+    return new Date(this.current.getTime());
+  }
+
+  set(instant: Date): void {
+    this.current = new Date(instant.getTime());
+  }
+
+  advance(ms: number): Date {
+    this.current = new Date(this.current.getTime() + ms);
+    return this.now();
+  }
+}
+
 export class SequentialIdGenerator implements IdGenerator {
   readonly issued: string[] = [];
 

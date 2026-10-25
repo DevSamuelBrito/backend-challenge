@@ -2,7 +2,10 @@ import type { EntityManager } from "@mikro-orm/core";
 import { AggregateNotFoundError } from "../../../shared/application/persistence-errors";
 import { isUniqueViolation } from "../../../shared/infrastructure/database/violations";
 import { WalletSchema } from "../../wallet/infrastructure/wallet.schema";
-import type { WagerTransactionRepository } from "../application/wager-transaction.repository";
+import type {
+  PendingReferenceCandidate,
+  WagerTransactionRepository,
+} from "../application/wager-transaction.repository";
 import {
   type DuplicatedConstraint,
   DuplicateTransactionError,
@@ -90,6 +93,22 @@ export class MikroOrmWagerTransactionRepository implements WagerTransactionRepos
     });
 
     return reversals > 0;
+  }
+
+  async findDueForReference(now: Date, limit: number): Promise<PendingReferenceCandidate[]> {
+    const rows = await this.em.find(
+      WagerTransactionSchema,
+      { status: WagerTransactionStatus.PendingReference, nextAttemptAt: { $lte: now } },
+      {
+        fields: ["id", "walletId"],
+        orderBy: { nextAttemptAt: "asc", id: "asc" },
+        limit,
+        disableIdentityMap: true,
+        refresh: true,
+      },
+    );
+
+    return rows.map((row) => ({ transactionId: row.id, walletId: row.walletId }));
   }
 
   private async load(

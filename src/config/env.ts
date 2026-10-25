@@ -12,12 +12,30 @@ export interface SqsConfig {
   eventsQueue: string;
 }
 
+export interface PendingReferenceConfig {
+  maxAttempts: number;
+  ttlMs: number;
+  tickIntervalMs: number;
+  batchSize: number;
+}
+
 export interface AppConfig {
   port: number;
   roles: readonly AppRole[];
   databaseUrl: string;
   databaseLockTimeoutMs: number;
+  pendingReference: PendingReferenceConfig;
   sqs: SqsConfig;
+}
+
+function positiveInteger(env: Record<string, string | undefined>, name: string, fallback: number) {
+  const value = Number(env[name] ?? fallback);
+
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} inválido: ${env[name]}`);
+  }
+
+  return value;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
@@ -49,6 +67,12 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     roles: rawRoles as AppRole[],
     databaseUrl: env.DATABASE_URL ?? "postgres://wagering:wagering@localhost:5432/wagering",
     databaseLockTimeoutMs,
+    pendingReference: {
+      maxAttempts: positiveInteger(env, "PENDING_REFERENCE_MAX_ATTEMPTS", 10),
+      ttlMs: positiveInteger(env, "PENDING_REFERENCE_TTL_MS", 15 * 60 * 1000),
+      tickIntervalMs: positiveInteger(env, "PENDING_WORKER_INTERVAL_MS", 1000),
+      batchSize: positiveInteger(env, "PENDING_WORKER_BATCH_SIZE", 20),
+    },
     sqs: {
       region: env.AWS_REGION ?? "us-east-1",
       endpoint: env.SQS_ENDPOINT ?? "http://localhost:4566",

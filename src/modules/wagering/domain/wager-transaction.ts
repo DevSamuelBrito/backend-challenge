@@ -235,6 +235,24 @@ export class WagerTransaction {
     this._nextAttemptAt = nextAttemptAt;
   }
 
+  countReferenceAttempt(): void {
+    this.requirePendingReference();
+    this._referenceAttempts += 1;
+  }
+
+  scheduleReferenceRetry(nextAttemptAt: Date): void {
+    this.requirePendingReference();
+    this._nextAttemptAt = nextAttemptAt;
+  }
+
+  isReferenceRetryDue(now: Date): boolean {
+    return (
+      this._status === WagerTransactionStatus.PendingReference &&
+      this._nextAttemptAt !== undefined &&
+      this._nextAttemptAt.getTime() <= now.getTime()
+    );
+  }
+
   reject(code: FailureCode, balanceAfter: Money, at: Date): void {
     this.transitionTo(WagerTransactionStatus.Rejected);
     this._failureCode = code;
@@ -322,6 +340,12 @@ export class WagerTransaction {
           "WAGER_INVALID_REFERENCE_KIND",
           `ROLLBACK não pode reverter ${reference.kind}`,
         );
+    }
+  }
+
+  private requirePendingReference(): void {
+    if (this._status !== WagerTransactionStatus.PendingReference) {
+      throw new InvalidTransactionStateError(this._status, WagerTransactionStatus.PendingReference);
     }
   }
 

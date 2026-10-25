@@ -21,6 +21,7 @@ export interface WalletApiOptions {
   providers?: readonly ProviderOverride[];
   wrapUnitOfWork?: (real: UnitOfWork) => UnitOfWork;
   lockTimeoutMs?: number;
+  env?: Record<string, string>;
 }
 
 export interface AppInstance {
@@ -48,6 +49,7 @@ export async function startInstance(
   const config = testConfig({
     DATABASE_URL: db.url,
     ...(options.lockTimeoutMs && { DB_LOCK_TIMEOUT_MS: String(options.lockTimeoutMs) }),
+    ...options.env,
   });
 
   let builder = Test.createTestingModule({ imports: [AppModule.register(config)] });

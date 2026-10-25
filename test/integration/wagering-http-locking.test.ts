@@ -192,6 +192,7 @@ describe("a idempotência é decidida DEPOIS do lock, sem fast path e sem retry 
         findByProviderAndExternalId: (provider, externalId) =>
           transactions.findByProviderAndExternalId(provider, externalId),
         hasProcessedReversalOf: (id) => transactions.hasProcessedReversalOf(id),
+        findDueForReference: (now, limit) => transactions.findDueForReference(now, limit),
       },
     };
   };
