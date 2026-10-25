@@ -384,10 +384,11 @@ Nenhum teste de integração ou de concorrência substitui PostgreSQL ou SQS por
 
 | Camada | Quantidade | O que prova |
 |---|---|---|
-| **Unitário** (`test/unit`) | 782 em 46 arquivos, ~2 s | Regras puras: `Money`, `Wallet`, `WagerTransaction` (transições), política de referência, hash, classificador de erros, backoff, cursor, config, logs, métricas. Aqui há fakes, sem rede. |
+| **Unitário** (`test/unit`) | 802 em 47 arquivos, ~2 s | Regras puras: `Money`, `Wallet`, `WagerTransaction` (transições), política de referência, hash, classificador de erros, backoff, cursor, config, logs, métricas. Aqui há fakes, sem rede. |
 | **Integração** (`test/integration`) | 767 em 43 arquivos | Schema e constraints (cada CHECK, UNIQUE e trigger), atomicidade (falha injetada depois de cada passo: nada persiste), HTTP ponta a ponta, inbox e redelivery, retry/DLQ/esgotamento, publisher concorrente, worker de pendências, reconciliação com divergência forçada por SQL, paginação, métricas e logs reais. Inclui 3 instâncias da aplicação **no mesmo processo** disputando o mesmo banco. |
 | **Concorrência** (`test/concurrency`) | 15 em 7 arquivos, ~35 s | **Processos `bun src/main.ts` de verdade**: BET repetida 50 vezes e duas BETs de 80.00 sobre 100.00 em 3 processos (HTTP e SQS); wallet travada não bloqueia as outras; processo morto depois do commit e antes do ack; dois publishers e um que morre depois de enviar; reversão antes da referência com o worker em outro processo; os 3 processos mortos com `SIGKILL` no meio de uma carga e religados, com o estado final calculado antes; `SIGTERM` gracioso. |
 | **Smoke do Compose** (`test/smoke`) | script | A mesma verificação contra a stack real em containers com `--scale app=3`. |
+| **Carga** (`test/load`, `bun run test:load`) | experimento, ~6-7 min | Contra o Compose com 3 instâncias: 4 cenários (wallets distintas, hot wallet, tempestade de replays, misto com reversões) em 3 rodadas, com carga de concorrência fixa e aquecimento descartado. Mede vazão, p50/p95/p99, erros, espera e *timeouts* de lock (via `/metrics`) e *lag* da outbox. Ao fim de cada cenário **verifica a correção**: reconciliação de todas as wallets, saldo igual ao esperado calculado a priori, ledger e saldo por SQL, um efeito por transação externa, outbox drenada, pendências resolvidas; sai com código diferente de zero se algo falhar. Relatório em [docs/LOAD_TEST.md](docs/LOAD_TEST.md). As funções de medição (percentil, leitura de Prometheus, diferença de histogramas) têm testes unitários. |
 
 **Helper de invariantes** (`test/support/invariants.ts`), executado ao fim de todo teste de integração e de concorrência de wallet: `wallet.balance == Σ ledger`; último `balance_after` == saldo e `wallet_version` contíguo; cada lançamento parte do saldo em que o anterior terminou; nenhuma transação não `PROCESSED` (ou `LOSS`) tem lançamento; todo lançamento tem `WalletBalanceChanged` na outbox.
 
@@ -478,13 +479,15 @@ Sem maquiagem:
 | **Cursor do ledger não é assinado** | Um cursor forjado só muda de onde se lê o ledger **da própria wallet** (a consulta sempre filtra por `wallet_id`); nada vaza. Quem chegou ao fim (`nextCursor: null`) precisa recomeçar para ver lançamentos novos. |
 | **`/metrics` sem autenticação** | Em produção deve ficar restrito à rede interna. Os registros são por instância; o gauge `wager_outbox_lag_seconds` é o último tick de cada instância. |
 | **Sem atalho de replay fora do lock** | O replay também espera o lock da wallet: latência a mais numa hot wallet, em troca de nunca devolver estado antigo. |
-| **Hot wallet serializada**, e o publisher segura locks abertos durante a chamada ao SQS (lote pequeno, timeout curto) | Throughput por wallet limitado pela duração da transação; sem teste de carga, não há número medido. |
+| **Hot wallet serializada**, e o publisher segura locks abertos durante a chamada ao SQS (lote pequeno, timeout curto) | Throughput por wallet limitado pela duração da transação. Medido em [docs/LOAD_TEST.md](docs/LOAD_TEST.md): ~208 req/s numa hot wallet contra ~906 req/s em wallets distintas (24 trabalhadores, 3 instâncias, tudo na mesma máquina), com quase toda a latência sendo fila para o lock. Nenhum 503 nem *lock timeout* nesse experimento. |
+| **A entrega de eventos pela outbox é muito mais lenta que a API com a configuração padrão** | O publicador envia um lote de 10 por ciclo de 1 s em cada instância: ~30 eventos/s com 3 instâncias, contra 200–900 req/s aceitas pela API. No teste de carga o *lag* chegou a 25–38 s e a outbox levou 29–40 s para esvaziar; nada se perde, mas sob carga sustentada o atraso cresce. `OUTBOX_BATCH_SIZE` e `OUTBOX_INTERVAL_MS` existem, mas não foram exploradas. |
+| **O teste de carga é um experimento limitado** | Modelo *closed-loop* (sofre de *coordinated omission*: a latência medida é otimista), gerador e sistema na mesma máquina, cenários de segundos, só pelo HTTP, uma única configuração. Os números não se transferem para outro ambiente nem provam capacidade; ver [docs/LOAD_TEST.md](docs/LOAD_TEST.md) §4 e §7. |
 | **A regra "saldo == ledger" não é constraint diferida** | É garantida por lock + atomicidade, conferida por reconciliação e pelos testes; um `UPDATE` direto no saldo por quem tem acesso ao banco passa (e a reconciliação o acusa). |
 | **Sem autenticação**; o `providerId` do payload é confiável | Ver §13. |
 | **`wager_transactions_total` conta entradas em status** | Uma pendência que se resolve conta duas vezes (`PENDING_REFERENCE` e depois `PROCESSED`/`REJECTED`). |
 | **Mensagens de erro nunca vão para o log** (só nome e código) | Diagnóstico mais pobre, em troca de nunca vazar valor ou chave. |
 | **LocalStack não persiste filas** | Parar o LocalStack descarta as mensagens enfileiradas. Não ocorre na AWS real. |
-| **Não implementados:** teste de carga (`test:load`), ledger de partidas dobradas, OpenTelemetry, trigger diferida de consistência wallet↔ledger | Itens opcionais/diferenciais deixados de fora para priorizar correção e testes. |
+| **Não implementados:** ledger de partidas dobradas, OpenTelemetry, trigger diferida de consistência wallet↔ledger | Itens opcionais/diferenciais deixados de fora para priorizar correção e testes. |
 | **Faixa de portas limita a 10 instâncias no Compose** e não há balanceador | Escolha para manter cada instância endereçável nos testes de escala. |
 | **Cobertura do SIGTERM** | O teste roda em Linux (container) e é pulado no Windows. |
 
@@ -495,7 +498,7 @@ Sem maquiagem:
 Se houvesse mais tempo, nesta ordem:
 
 1. **Persistir `FAILED`** para mensagens que esgotam as tentativas com a transação já identificada (hoje só a DLQ guarda isso) e emitir o evento correspondente.
-2. **Teste de carga** (`bun run test:load`) com p50/p95/p99, conflitos de lock e outbox lag, para dar número ao custo da hot wallet.
+2. **Aumentar a capacidade da outbox** (publicar enquanto houver pendentes no mesmo ciclo, ou lotes e frequência maiores) e repetir o teste de carga para ver o efeito; ampliar o teste de carga com chegadas em taxa fixa (*open-loop*), carga longa e a entrada pela fila SQS. O teste atual (`bun run test:load`, [docs/LOAD_TEST.md](docs/LOAD_TEST.md)) já mede o custo da hot wallet e o atraso da outbox.
 3. **Autenticação** com IdP externo (§13), incluindo a checagem `providerId` do payload × identidade.
 4. **`SKIP LOCKED` (ou reivindicação por lease) no worker de pendências**, e guardar o `correlationId` original na transação.
 5. **Trigger diferida** (`DEFERRABLE INITIALLY DEFERRED`) que confira `wallet.balance` contra o ledger no commit, como defesa em profundidade.

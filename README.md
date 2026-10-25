@@ -254,10 +254,11 @@ bun run infra:test:up        # sobe Postgres + LocalStack de teste
 
 | Comando | O que roda | Tempo aproximado* |
 |---|---|---|
-| `bun test` | Unitários (782) e integração (767), em sequência | ~170 s |
+| `bun test` | Unitários (802) e integração (767), em sequência | ~170 s |
 | `bun run test:fast` | A mesma suíte com `bun test --parallel=4` | ~50 s |
 | `bun run test:concurrency` | 15 cenários com **processos `bun src/main.ts` de verdade**: 3 instâncias, crash, reinício, publishers concorrentes | ~35 s |
 | `bun run smoke:scale` | Verificação contra o Compose em pé com `--scale app=3` (50 BETs iguais em paralelo, 100.00 com 2×80.00, mensagem pela fila) | ~5 s |
+| `bun run test:load` | Teste de carga contra o Compose com 3 instâncias (ver abaixo) | ~6-7 min |
 
 \* Medido numa máquina de desenvolvimento com Windows e Docker Desktop; varia com o disco e a CPU. A maior parte do tempo da suíte é espera real do SQS (visibility timeout, backoff, redrive).
 
@@ -277,6 +278,15 @@ docker run --rm --network wagering-test_default -v "$PWD:/app" -w /app \
 A suíte de concorrência fica fora do `bun test` de propósito (sobe processos e leva dezenas de segundos). O que cada suíte prova está no [ARCHITECTURE.md](ARCHITECTURE.md#15-estratégia-de-testes).
 
 Outros scripts: `bun run lint`, `bun run typecheck`, `bun run format`.
+
+### Teste de carga
+
+```bash
+docker compose up --build -d --wait --scale app=3   # o teste exige 3 instâncias da aplicação
+bun run test:load                                    # ~6-7 minutos; 3 rodadas de 4 cenários
+```
+
+Pré-requisitos: Docker, Bun e `bun install`. O teste **usa o Compose da aplicação** (não a infra de teste), descobre sozinho as portas das instâncias e pode ser reexecutado sem limpar nada (todos os ids levam um identificador da execução; `docker compose down -v` recomeça de um banco vazio). Os cenários (wallets distintas, hot wallet, tempestade de replays e misto com reversões), o modelo de carga, as limitações e a análise estão em [docs/LOAD_TEST.md](docs/LOAD_TEST.md), que o comando atualiza a cada execução (ambiente e tabelas). O comando sai com código diferente de zero se qualquer verificação de correção falhar (saldo, ledger, duplicidade, outbox). Ajustes por variável de ambiente (`LOAD_ROUNDS`, `LOAD_CONCURRENCY`, `LOAD_WALLETS`, `LOAD_HOT_BETS`, …) estão em `test/load/settings.ts`.
 
 ## Variáveis de ambiente principais
 
@@ -308,6 +318,7 @@ Todas são opcionais; os padrões já funcionam com `docker compose up`. A lista
 | `src/shared/` | `Money`, eventos de integração, Unit of Work, logs, métricas, injetor de falha |
 | `migrations/` | Migrations do MikroORM (up/down) |
 | `test/unit`, `test/integration`, `test/concurrency` | As três suítes; `test/support` tem os helpers; `test/smoke` tem os scripts de verificação do Compose |
+| `test/load/` | Teste de carga (`bun run test:load`); o relatório é `docs/LOAD_TEST.md` |
 | `localstack/init/` | Script que cria as 3 filas no LocalStack |
 | `Dockerfile`, `docker-compose.yml` | Imagem e stack completa; `docker-compose.test.yml` é a infra dos testes |
 
@@ -327,4 +338,5 @@ Todas são opcionais; os padrões já funcionam com `docker compose up`. A lista
 ## Documentação
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): decisões, trade-offs, interpretações e limitações.
+- [docs/LOAD_TEST.md](docs/LOAD_TEST.md): teste de carga (ambiente, metodologia, resultados e análise).
 - [docs/CHALLENGE.md](docs/CHALLENGE.md): enunciado do desafio.
