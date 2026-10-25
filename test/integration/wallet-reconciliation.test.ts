@@ -157,9 +157,7 @@ describe("POST /wallets/:walletId/reconciliation", () => {
       expect(logged[0]).toEqual({
         event: "wallet.reconciliation_mismatch",
         walletId: wallet.id,
-        storedBalance: money("120.00"),
-        calculatedBalance: money("70.00"),
-        difference: money("50.00"),
+        storedIs: "ABOVE_LEDGER",
         checkedEntries: 2,
       });
 

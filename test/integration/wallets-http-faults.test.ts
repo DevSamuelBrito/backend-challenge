@@ -66,7 +66,8 @@ describe("POST /wallets com falha injetada no meio da transação", () => {
       expect(failed.status).toBe(500);
       expect(failed.body).toEqual({ code: "INTERNAL_ERROR", message: "Erro interno do servidor" });
       expect(JSON.stringify(failed.body)).not.toContain(INJECTED_FAILURE);
-      expect(String(logged[0])).toContain(`${INJECTED_FAILURE} depois de ${point}`);
+      expect(logged[0]).toMatchObject({ event: "http.unhandled_error", errorName: "Error" });
+      expect(JSON.stringify(logged[0])).not.toContain(INJECTED_FAILURE);
       expect(await tableCounts(api.db.client)).toEqual(before);
 
       const retried = await api.http.post("/wallets", request(playerId, "100.00"));

@@ -1,4 +1,7 @@
 import { Injectable } from "@nestjs/common";
+import { validCorrelationId } from "../../../shared/application/correlation-id";
+import { enrichContext } from "../../../shared/application/request-context";
+import { describeError } from "../../../shared/application/safe-error";
 import type { QueueMessage } from "../../messaging/application/message-queue.port";
 import type { Disposition, MessageHandler } from "../../messaging/application/queue-consumer";
 import { ProcessWagerTransaction } from "../application/process-wager-transaction";
@@ -16,6 +19,12 @@ export class WagerTransactionMessageHandler implements MessageHandler {
     try {
       const { messageId, command } = parseWagerTransactionMessage(message.body);
 
+      enrichContext({
+        messageId,
+        correlationId:
+          validCorrelationId(message.attributes?.correlationId) ?? validCorrelationId(messageId),
+      });
+
       await this.processWagerTransaction.execute(command, {
         consumerName: WAGER_TRANSACTION_CONSUMER,
         messageId,
@@ -23,7 +32,7 @@ export class WagerTransactionMessageHandler implements MessageHandler {
 
       return { kind: "ack" };
     } catch (error) {
-      const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      const detail = describeError(error);
       const classification = classifyError(error);
 
       return classification.kind === "permanent"

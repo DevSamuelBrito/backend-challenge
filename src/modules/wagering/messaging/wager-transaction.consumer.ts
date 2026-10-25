@@ -5,6 +5,7 @@ import {
   FAULT_INJECTOR,
   type FaultInjector,
 } from "../../../shared/application/fault-injector.port";
+import { METRICS, type Metrics, NO_OP_METRICS } from "../../../shared/application/metrics.port";
 import { MESSAGE_QUEUE, type MessageQueue } from "../../messaging/application/message-queue.port";
 import { QueueConsumer } from "../../messaging/application/queue-consumer";
 import { WagerTransactionMessageHandler } from "./wager-transaction-message.handler";
@@ -22,18 +23,28 @@ export class WagerTransactionConsumer implements OnModuleInit, OnModuleDestroy {
     handler: WagerTransactionMessageHandler,
     @Inject(FAULT_INJECTOR) faults: FaultInjector,
     @Inject(APP_CONFIG) private readonly config: WagerTransactionConsumerConfig,
+    @Inject(METRICS) metrics: Metrics = NO_OP_METRICS,
   ) {
     const { consumer } = config;
 
-    this.consumer = new QueueConsumer(queue, handler, faults, {
-      waitSeconds: consumer.waitSeconds,
-      batchSize: consumer.batchSize,
-      concurrency: consumer.concurrency,
-      visibilityTimeoutSeconds: consumer.visibilityTimeoutSeconds,
-      backoff: { baseSeconds: consumer.backoffBaseSeconds, maxSeconds: consumer.backoffMaxSeconds },
-      shutdownTimeoutMs: consumer.shutdownTimeoutMs,
-      pollFailurePauseMs: POLL_FAILURE_PAUSE_MS,
-    });
+    this.consumer = new QueueConsumer(
+      queue,
+      handler,
+      faults,
+      {
+        waitSeconds: consumer.waitSeconds,
+        batchSize: consumer.batchSize,
+        concurrency: consumer.concurrency,
+        visibilityTimeoutSeconds: consumer.visibilityTimeoutSeconds,
+        backoff: {
+          baseSeconds: consumer.backoffBaseSeconds,
+          maxSeconds: consumer.backoffMaxSeconds,
+        },
+        shutdownTimeoutMs: consumer.shutdownTimeoutMs,
+        pollFailurePauseMs: POLL_FAILURE_PAUSE_MS,
+      },
+      metrics,
+    );
   }
 
   onModuleInit(): void {

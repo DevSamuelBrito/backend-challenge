@@ -86,7 +86,7 @@ describe("WagerTransactionMessageHandler", () => {
     expect(calls).toHaveLength(0);
   });
 
-  test("erro permanente do caso de uso vai para a DLQ, com o detalhe", async () => {
+  test("erro permanente do caso de uso vai para a DLQ, com nome e código mas sem a mensagem", async () => {
     const { handler } = handlerWith(() => {
       throw new IdempotencyConflictError("provider-a:tx-1");
     });
@@ -97,7 +97,10 @@ describe("WagerTransactionMessageHandler", () => {
       kind: "dead-letter",
       reason: "IDEMPOTENCY_CONFLICT",
     });
-    expect(disposition.kind === "dead-letter" && disposition.detail).toContain("provider-a:tx-1");
+    expect(disposition.kind === "dead-letter" && disposition.detail).toBe(
+      "IdempotencyConflictError (IDEMPOTENCY_CONFLICT)",
+    );
+    expect(JSON.stringify(disposition)).not.toContain("provider-a:tx-1");
   });
 
   test("erro transitório do caso de uso vira retry", async () => {

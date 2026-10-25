@@ -1,6 +1,13 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { CLOCK, type Clock } from "../../../shared/application/clock.port";
 import { ID_GENERATOR, type IdGenerator } from "../../../shared/application/id-generator.port";
+import {
+  METRICS,
+  type Metrics,
+  measureLockWait,
+  NO_OP_METRICS,
+} from "../../../shared/application/metrics.port";
+import { enrichContext } from "../../../shared/application/request-context";
 import {
   type Repositories,
   UNIT_OF_WORK,
@@ -50,11 +57,14 @@ export function isMessageAlreadyProcessed(
 
 @Injectable()
 export class ProcessWagerTransaction {
+  private readonly logger = new Logger(ProcessWagerTransaction.name);
+
   constructor(
     @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
     private readonly settlement: WagerSettlement,
+    @Inject(METRICS) private readonly metrics: Metrics = NO_OP_METRICS,
   ) {}
 
   execute(command: ProcessWagerTransactionCommand): Promise<ProcessWagerTransactionResult>;
@@ -65,6 +75,24 @@ export class ProcessWagerTransaction {
   async execute(
     command: ProcessWagerTransactionCommand,
     inbox?: InboxContext,
+  ): Promise<ProcessWagerTransactionResult | MessageAlreadyProcessed> {
+    const source = inbox ? "sqs" : "http";
+    const startedAt = performance.now();
+    enrichContext({ walletId: command.walletId, providerId: command.providerId });
+
+    try {
+      const outcome = await this.run(command, inbox);
+      this.record(command, outcome, source);
+
+      return outcome;
+    } finally {
+      this.metrics.processingDuration(source, (performance.now() - startedAt) / 1000);
+    }
+  }
+
+  private async run(
+    command: ProcessWagerTransactionCommand,
+    inbox: InboxContext | undefined,
   ): Promise<ProcessWagerTransactionResult | MessageAlreadyProcessed> {
     const payloadHash = computePayloadHash(command);
 
@@ -77,6 +105,34 @@ export class ProcessWagerTransaction {
     }
 
     return this.retryAfterDuplicate(command, payloadHash, inbox);
+  }
+
+  private record(
+    command: ProcessWagerTransactionCommand,
+    outcome: ProcessWagerTransactionResult | MessageAlreadyProcessed,
+    source: "http" | "sqs",
+  ): void {
+    if (isMessageAlreadyProcessed(outcome)) {
+      this.metrics.duplicateDetected("inbox_message", source);
+      this.logger.log({ event: "wager.message_already_processed", kind: command.kind });
+      return;
+    }
+
+    enrichContext({ transactionId: outcome.transactionId });
+
+    if (outcome.idempotentReplay) {
+      this.metrics.duplicateDetected("idempotent_replay", source);
+    } else {
+      this.metrics.transactionRecorded(command.kind, outcome.status);
+    }
+
+    this.logger.log({
+      event: outcome.idempotentReplay ? "wager.replay" : "wager.processed",
+      kind: command.kind,
+      status: outcome.status,
+      ...(outcome.failureCode && { failureCode: outcome.failureCode }),
+      source,
+    });
   }
 
   private async retryAfterDuplicate(
@@ -154,7 +210,9 @@ export class ProcessWagerTransaction {
     payloadHash: string,
     at: Date,
   ): Promise<ProcessWagerTransactionResult> {
-    const wallet = await repositories.wallets.findByIdForUpdate(command.walletId);
+    const wallet = await measureLockWait(this.metrics, () =>
+      repositories.wallets.findByIdForUpdate(command.walletId),
+    );
 
     if (!wallet) {
       throw new WalletNotFoundError(command.walletId);

@@ -11,6 +11,7 @@ export function testConfig(overrides: Record<string, string> = {}): AppConfig {
   return loadConfig({
     PORT: "0",
     APP_ROLES: "api",
+    METRICS_DEFAULT_METRICS: "false",
     DATABASE_URL: `postgres://wagering:wagering@127.0.0.1:${postgresPort}/wagering_test`,
     SQS_ENDPOINT: `http://127.0.0.1:${localstackPort}`,
     ...overrides,

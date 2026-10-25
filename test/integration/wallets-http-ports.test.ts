@@ -79,7 +79,7 @@ describe("POST /wallets usa as portas Clock e IdGenerator", () => {
       ...events.map((event) => event.id),
     ];
 
-    expect(id).toBe(issued[0] as string);
+    expect(id).toBe(issued[1] as string);
     expect(new Set(used).size).toBe(6);
     expect([...used].sort()).toEqual([...issued].sort());
   });
@@ -91,7 +91,7 @@ describe("POST /wallets usa as portas Clock e IdGenerator", () => {
     const { id } = response.body as { id: string };
     const [wallet] = await query("select * from wallets where id = $1", [id]);
 
-    expect(id).toBe(ids.issued[issuedBefore] as string);
+    expect(id).toBe(ids.issued[issuedBefore + 1] as string);
     expect(wallet?.created_at).toEqual(FIXED);
     expect(wallet?.updated_at).toEqual(FIXED);
   });

@@ -4,4 +4,5 @@ export interface OutboxRepository {
   add(message: OutboxMessage): Promise<void>;
   lockDueBatch(now: Date, limit: number): Promise<OutboxMessage[]>;
   save(message: OutboxMessage): Promise<void>;
+  oldestPendingAt(): Promise<Date | undefined>;
 }

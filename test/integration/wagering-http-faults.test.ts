@@ -85,7 +85,8 @@ describe("POST /wagering/transactions com falha injetada no meio da transação"
           message: "Erro interno do servidor",
         });
         expect(JSON.stringify(failed.body)).not.toContain(INJECTED_FAILURE);
-        expect(String(logged[0])).toContain(INJECTED_FAILURE);
+        expect(logged[0]).toMatchObject({ event: "http.unhandled_error", errorName: "Error" });
+        expect(JSON.stringify(logged[0])).not.toContain(INJECTED_FAILURE);
         expect(await tableCounts(api.db.client)).toEqual(before);
         expect(await walletSnapshot(api.db.client, wallet.id)).toEqual({
           balance: "100.00",

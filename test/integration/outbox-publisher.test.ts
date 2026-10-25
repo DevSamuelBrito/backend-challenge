@@ -328,12 +328,10 @@ describe("publisher da outbox: falhas de envio nunca perdem nem travam o lote", 
 
       await s.tick(AT);
 
-      const messages = warn.mock.calls.map((call) => String(call[0]));
-      expect(messages.some((message) => message.includes(late as string))).toBe(true);
-      expect(messages.some((message) => message.includes(early as string))).toBe(false);
-      expect(messages.find((message) => message.includes(late as string))).toContain(
-        "11 tentativas",
-      );
+      const logged = warn.mock.calls.map((call) => call[0] as Record<string, unknown>);
+      expect(logged.some((entry) => entry.eventId === late)).toBe(true);
+      expect(logged.some((entry) => entry.eventId === early)).toBe(false);
+      expect(logged.find((entry) => entry.eventId === late)).toMatchObject({ attempts: 11 });
     } finally {
       warn.mockRestore();
     }
@@ -522,9 +520,8 @@ describe("publisher da outbox: o limiar do alerta vem da configuração", () => 
 
       await s.tick(AT);
 
-      const messages = warn.mock.calls.map((call) => String(call[0]));
-      expect(messages.some((message) => message.includes(id as string))).toBe(true);
-      expect(messages.find((message) => message.includes(id as string))).toContain("3 tentativas");
+      const logged = warn.mock.calls.map((call) => call[0] as Record<string, unknown>);
+      expect(logged.find((entry) => entry.eventId === id)).toMatchObject({ attempts: 3 });
     } finally {
       warn.mockRestore();
     }

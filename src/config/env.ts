@@ -37,6 +37,23 @@ export interface ConsumerConfig {
   shutdownTimeoutMs: number;
 }
 
+export type LogLevel = "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
+
+const LOG_LEVELS: readonly LogLevel[] = [
+  "fatal",
+  "error",
+  "warn",
+  "info",
+  "debug",
+  "trace",
+  "silent",
+];
+
+export interface ObservabilityConfig {
+  logLevel: LogLevel;
+  defaultMetrics: boolean;
+}
+
 export interface AppConfig {
   port: number;
   roles: readonly AppRole[];
@@ -45,6 +62,7 @@ export interface AppConfig {
   pendingReference: PendingReferenceConfig;
   outbox: OutboxConfig;
   consumer: ConsumerConfig;
+  observability: ObservabilityConfig;
   sqs: SqsConfig;
 }
 
@@ -65,6 +83,22 @@ function positiveInteger(
   }
 
   return value;
+}
+
+function loadObservabilityConfig(env: Record<string, string | undefined>): ObservabilityConfig {
+  const logLevel = (env.LOG_LEVEL ?? "info").toLowerCase();
+
+  if (!LOG_LEVELS.includes(logLevel as LogLevel)) {
+    throw new Error(`LOG_LEVEL inválido: ${env.LOG_LEVEL}`);
+  }
+
+  const defaultMetrics = (env.METRICS_DEFAULT_METRICS ?? "true").toLowerCase();
+
+  if (defaultMetrics !== "true" && defaultMetrics !== "false") {
+    throw new Error(`METRICS_DEFAULT_METRICS inválido: ${env.METRICS_DEFAULT_METRICS}`);
+  }
+
+  return { logLevel: logLevel as LogLevel, defaultMetrics: defaultMetrics === "true" };
 }
 
 function loadConsumerConfig(env: Record<string, string | undefined>): ConsumerConfig {
@@ -168,6 +202,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       alertAttempts: positiveInteger(env, "OUTBOX_ALERT_ATTEMPTS", 10),
     },
     consumer: loadConsumerConfig(env),
+    observability: loadObservabilityConfig(env),
     sqs,
   };
 }

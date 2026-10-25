@@ -1,4 +1,11 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
+import {
+  METRICS,
+  type Metrics,
+  measureLockWait,
+  NO_OP_METRICS,
+} from "../../../shared/application/metrics.port";
+import { enrichContext } from "../../../shared/application/request-context";
 import { UNIT_OF_WORK, type UnitOfWork } from "../../../shared/application/unit-of-work.port";
 import type { Money } from "../../../shared/domain/money";
 import { WalletNotFoundError } from "../domain/wallet-errors";
@@ -16,11 +23,16 @@ export interface WalletReconciliation {
 export class ReconcileWallet {
   private readonly logger = new Logger(ReconcileWallet.name);
 
-  constructor(@Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork) {}
+  constructor(
+    @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
+    @Inject(METRICS) private readonly metrics: Metrics = NO_OP_METRICS,
+  ) {}
 
   async execute(walletId: string): Promise<WalletReconciliation> {
+    enrichContext({ walletId });
+
     const result = await this.unitOfWork.run(async ({ wallets, ledger }) => {
-      const wallet = await wallets.findByIdForShare(walletId);
+      const wallet = await measureLockWait(this.metrics, () => wallets.findByIdForShare(walletId));
 
       if (!wallet) {
         throw new WalletNotFoundError(walletId);
@@ -47,13 +59,11 @@ export class ReconcileWallet {
   }
 
   private reportMismatch(result: WalletReconciliation): void {
-    // Ponto da métrica de divergências de reconciliação (etapa 15).
+    this.metrics.reconciliationMismatch();
     this.logger.error({
       event: "wallet.reconciliation_mismatch",
       walletId: result.walletId,
-      storedBalance: result.storedBalance.toJSON(),
-      calculatedBalance: result.calculatedBalance.toJSON(),
-      difference: result.difference.toJSON(),
+      storedIs: result.difference.isPositive() ? "ABOVE_LEDGER" : "BELOW_LEDGER",
       checkedEntries: result.checkedEntries,
     });
   }

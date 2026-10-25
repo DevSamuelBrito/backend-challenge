@@ -8,6 +8,7 @@ export type RepositoryFactory = (em: EntityManager) => Repositories;
 
 export interface UnitOfWorkOptions {
   lockTimeoutMs: number;
+  onLockTimeout?: () => void;
 }
 
 function isLockTimeout(error: unknown): boolean {
@@ -40,6 +41,7 @@ export class MikroOrmUnitOfWork implements UnitOfWork {
       });
     } catch (error) {
       if (isLockTimeout(error)) {
+        this.options.onLockTimeout?.();
         throw new LockTimeoutError(this.options.lockTimeoutMs, { cause: error });
       }
 

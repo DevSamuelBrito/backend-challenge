@@ -37,6 +37,7 @@ function build(options: {
   const saved: OutboxMessage[] = [];
   const outbox: OutboxRepository = {
     add: async () => undefined,
+    oldestPendingAt: async () => undefined,
     lockDueBatch: async () => {
       calls.push("lock");
       return options.batch;
@@ -239,11 +240,14 @@ describe("OutboxPublisher.tick", () => {
 
       await service.tick(NOW);
 
-      const texts = warn.mock.calls.map((call) => String(call[0]));
-      expect(texts).toHaveLength(1);
-      expect(texts[0]).toContain("acima");
-      expect(texts[0]).toContain("6 tentativas");
-      expect(texts[0]).toContain("SQS fora");
+      const logged = warn.mock.calls.map((call) => call[0] as Record<string, unknown>);
+      expect(logged).toHaveLength(1);
+      expect(logged[0]).toMatchObject({
+        event: "outbox.publish_late",
+        eventId: "acima",
+        attempts: 6,
+        reason: "SQS fora",
+      });
     } finally {
       warn.mockRestore();
     }

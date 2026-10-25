@@ -9,6 +9,7 @@ import { WalletModule } from "./modules/wallet/wallet.module";
 import { DatabaseModule } from "./shared/infrastructure/database/database.module";
 import { PersistenceModule } from "./shared/infrastructure/database/persistence.module";
 import { AllExceptionsFilter } from "./shared/infrastructure/http/all-exceptions.filter";
+import { ObservabilityModule } from "./shared/infrastructure/observability/observability.module";
 import { SqsModule } from "./shared/infrastructure/sqs/sqs.module";
 
 /**
@@ -26,6 +27,7 @@ export class AppModule {
         DatabaseModule,
         PersistenceModule,
         SqsModule,
+        ObservabilityModule,
         HealthModule,
         WalletModule,
         WageringModule,

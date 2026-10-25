@@ -35,6 +35,7 @@ export interface DeadLetter {
 export interface SendOptions {
   groupId?: string;
   deduplicationId?: string;
+  attributes?: Record<string, string>;
 }
 
 export interface InputQueues {
@@ -144,6 +145,14 @@ export async function createInputQueues(options: QueueOptions = {}): Promise<Inp
           MessageBody: body,
           MessageGroupId: sendOptions.groupId ?? parsed.data?.walletId ?? randomUUID(),
           MessageDeduplicationId: sendOptions.deduplicationId ?? parsed.messageId ?? randomUUID(),
+          ...(sendOptions.attributes && {
+            MessageAttributes: Object.fromEntries(
+              Object.entries(sendOptions.attributes).map(([name, value]) => [
+                name,
+                { DataType: "String", StringValue: value },
+              ]),
+            ),
+          }),
         }),
       );
     },

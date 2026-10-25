@@ -1,5 +1,9 @@
 import { Logger } from "@nestjs/common";
+import { validCorrelationId } from "../../../shared/application/correlation-id";
 import type { FaultInjector } from "../../../shared/application/fault-injector.port";
+import { type Metrics, NO_OP_METRICS } from "../../../shared/application/metrics.port";
+import { runWithContext } from "../../../shared/application/request-context";
+import { describeError } from "../../../shared/application/safe-error";
 import type { MessageQueue, QueueMessage } from "./message-queue.port";
 import { type VisibilityBackoff, visibilityBackoffSeconds } from "./visibility-backoff";
 
@@ -34,6 +38,7 @@ export class QueueConsumer {
     private readonly handler: MessageHandler,
     private readonly faults: FaultInjector,
     private readonly settings: QueueConsumerSettings,
+    private readonly metrics: Metrics = NO_OP_METRICS,
   ) {}
 
   start(): void {
@@ -91,7 +96,7 @@ export class QueueConsumer {
           return;
         }
 
-        this.logger.error(`Falha ao buscar mensagens da fila: ${describe(error)}`);
+        this.logger.error({ event: "consumer.receive_failed", error: describeError(error) });
         await this.pause();
         continue;
       }
@@ -138,13 +143,20 @@ export class QueueConsumer {
     }
   }
 
-  private async process(message: QueueMessage): Promise<boolean> {
+  private process(message: QueueMessage): Promise<boolean> {
+    const correlationId =
+      validCorrelationId(message.attributes?.correlationId) ?? message.sqsMessageId;
+
+    return runWithContext({ correlationId }, () => this.processInContext(message));
+  }
+
+  private async processInContext(message: QueueMessage): Promise<boolean> {
     let disposition: Disposition;
 
     try {
       disposition = await this.handler.handle(message);
     } catch (error) {
-      disposition = { kind: "retry", reason: "HANDLER_FAILURE", detail: describe(error) };
+      disposition = { kind: "retry", reason: "HANDLER_FAILURE", detail: describeError(error) };
     }
 
     try {
@@ -164,7 +176,7 @@ export class QueueConsumer {
         event: "consumer.settle_failed",
         disposition: disposition.kind,
         sqsMessageId: message.sqsMessageId,
-        error: describe(error),
+        error: describeError(error),
       });
 
       return false;
@@ -189,6 +201,7 @@ export class QueueConsumer {
     this.reportPermanentFailure(message, disposition);
 
     await this.queue.sendToDeadLetter(message, disposition.reason);
+    this.metrics.deadLettered(disposition.reason);
     await this.queue.delete(message);
   }
 
@@ -197,6 +210,8 @@ export class QueueConsumer {
     disposition: Extract<Disposition, { kind: "retry" }>,
   ): Promise<void> {
     const seconds = visibilityBackoffSeconds(message.receiveCount, this.settings.backoff);
+
+    this.metrics.retryScheduled("consumer");
 
     this.logger.warn({
       event: "consumer.transient_failure",
@@ -215,7 +230,6 @@ export class QueueConsumer {
     message: QueueMessage,
     disposition: Extract<Disposition, { kind: "dead-letter" }>,
   ): void {
-    // Ponto da métrica de mensagens enviadas à DLQ (etapa 15).
     this.logger.warn({
       event: "consumer.dead_letter",
       reason: disposition.reason,
@@ -245,7 +259,7 @@ export class QueueConsumer {
           this.logger.warn({
             event: "consumer.release_failed",
             sqsMessageId: message.sqsMessageId,
-            error: describe(error),
+            error: describeError(error),
           });
         }
       }),
@@ -283,8 +297,4 @@ function groupInOrder(messages: readonly QueueMessage[]): QueueMessage[][] {
   }
 
   return [...groups.values()];
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }

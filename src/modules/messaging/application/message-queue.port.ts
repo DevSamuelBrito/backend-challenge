@@ -7,6 +7,7 @@ export interface QueueMessage {
   groupId: string | undefined;
   deduplicationId: string | undefined;
   receiveCount: number;
+  attributes?: Record<string, string>;
 }
 
 export interface ReceiveOptions {

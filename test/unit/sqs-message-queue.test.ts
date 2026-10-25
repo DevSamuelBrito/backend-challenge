@@ -100,6 +100,7 @@ describe("SqsMessageQueue", () => {
         groupId: "wallet-1",
         deduplicationId: "dedup-1",
         receiveCount: 4,
+        attributes: {},
       },
     ]);
   });

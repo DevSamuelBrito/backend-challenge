@@ -13,6 +13,7 @@ import {
   wagerMessage,
 } from "./consumer";
 import { expectInvariants } from "./invariants";
+import { type LogCapture, logProvider } from "./observability";
 import { ScriptedFaultInjector } from "./outbox";
 import { tableCounts } from "./table-counts";
 import {
@@ -29,6 +30,7 @@ import { startWalletApi, type WalletApi, type WalletApiOptions } from "./wallet-
 export function useConsumer(
   env: Record<string, string> = {},
   options: Omit<WalletApiOptions, "env" | "providers"> = {},
+  capture?: LogCapture,
 ) {
   let api: WalletApi;
   let queues: InputQueues;
@@ -47,9 +49,11 @@ export function useConsumer(
     api = await startWalletApi({
       ...options,
       env: queueEnv,
+      ...(capture && { useAppLogger: true }),
       providers: [
         { token: MESSAGE_QUEUE, value: queue },
         { token: FAULT_INJECTOR, value: faults },
+        ...(capture ? [logProvider(capture)] : []),
       ],
     });
   });

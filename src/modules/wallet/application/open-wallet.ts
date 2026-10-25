@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { CLOCK, type Clock } from "../../../shared/application/clock.port";
 import { ID_GENERATOR, type IdGenerator } from "../../../shared/application/id-generator.port";
+import { currentContext, enrichContext } from "../../../shared/application/request-context";
 import { UNIT_OF_WORK, type UnitOfWork } from "../../../shared/application/unit-of-work.port";
 import type { Money } from "../../../shared/domain/money";
 import type { EventContext } from "../../../shared/events/integration-event";
@@ -50,7 +51,7 @@ export class OpenWallet {
         createdAt: at,
       });
 
-      const correlationId = this.ids.next();
+      const correlationId = currentContext().correlationId ?? this.ids.next();
       const contextFor = (): EventContext => ({
         eventId: this.ids.next(),
         correlationId,
@@ -67,6 +68,8 @@ export class OpenWallet {
         OutboxMessage.enqueue(WalletBalanceChanged.from(openingEntry, contextFor())),
       );
     });
+
+    enrichContext({ walletId: wallet.id });
 
     return wallet;
   }

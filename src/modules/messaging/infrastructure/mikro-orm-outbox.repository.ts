@@ -37,6 +37,14 @@ export class MikroOrmOutboxRepository implements OutboxRepository {
     return rows.map((row) => outboxMessageMapper.toDomain(toRecord(row)));
   }
 
+  async oldestPendingAt(): Promise<Date | undefined> {
+    const [row] = await this.em.execute<{ oldest: number | null }[]>(
+      "select extract(epoch from min(occurred_at))::float8 as oldest from outbox_messages where published_at is null",
+    );
+
+    return row?.oldest == null ? undefined : new Date(row.oldest * 1000);
+  }
+
   async save(message: OutboxMessage): Promise<void> {
     const { attempts, nextAttemptAt, publishedAt } = outboxMessageMapper.toRecord(message);
 

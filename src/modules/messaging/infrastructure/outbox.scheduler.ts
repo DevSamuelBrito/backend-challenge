@@ -8,6 +8,7 @@ import {
 import { APP_CONFIG } from "../../../config/config.module";
 import type { AppConfig } from "../../../config/env";
 import { CLOCK, type Clock } from "../../../shared/application/clock.port";
+import { describeError } from "../../../shared/application/safe-error";
 import { PeriodicRunner } from "../../../shared/infrastructure/scheduling/periodic-runner";
 import { OutboxPublisher } from "../application/outbox-publisher";
 
@@ -30,10 +31,7 @@ export class OutboxScheduler implements OnModuleInit, OnModuleDestroy {
         await this.publisher.tick(this.clock.now());
       },
       config.outbox.tickIntervalMs,
-      (error) =>
-        this.logger.error(
-          `Falha no tick do publisher da outbox: ${error instanceof Error ? error.message : String(error)}`,
-        ),
+      (error) => this.logger.error({ event: "outbox.tick_failed", error: describeError(error) }),
     );
   }
 

@@ -37,7 +37,7 @@ describe("cursor do ledger", () => {
     ["seq com espaço", raw("l1: 42")],
     ["seq com sufixo", raw("l1:42x")],
     ["com padding =", `${encodeLedgerCursor("42")}=`],
-    ["em base64 comum com + e /", Buffer.from("l1:42", "utf8").toString("base64") + "=="],
+    ["em base64 comum com + e /", `${Buffer.from("l1:42", "utf8").toString("base64")}==`],
     ["adulterado: caractere do prefixo trocado", encodeLedgerCursor("42").replace("DE6", "DF6")],
   ])("recusa cursor %s", (_name, cursor) => {
     expect(() => decodeLedgerCursor(cursor)).toThrow(InvalidRequestError);

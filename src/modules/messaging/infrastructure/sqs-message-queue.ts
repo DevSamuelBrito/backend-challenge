@@ -34,6 +34,7 @@ export class SqsMessageQueue implements MessageQueue {
         MaxNumberOfMessages: options.maxMessages,
         WaitTimeSeconds: options.waitSeconds,
         VisibilityTimeout: options.visibilityTimeoutSeconds,
+        MessageAttributeNames: ["correlationId"],
         MessageSystemAttributeNames: [
           "ApproximateReceiveCount",
           "MessageGroupId",
@@ -54,6 +55,7 @@ export class SqsMessageQueue implements MessageQueue {
       groupId: message.Attributes?.MessageGroupId,
       deduplicationId: message.Attributes?.MessageDeduplicationId,
       receiveCount: Number(message.Attributes?.ApproximateReceiveCount ?? 1),
+      attributes: stringAttributes(message.MessageAttributes),
     }));
   }
 
@@ -92,6 +94,9 @@ export class SqsMessageQueue implements MessageQueue {
           failureReason: { DataType: "String", StringValue: reason },
           sourceQueue: { DataType: "String", StringValue: this.config.sqs.transactionsQueue },
           originalSqsMessageId: { DataType: "String", StringValue: message.sqsMessageId },
+          ...(message.attributes?.correlationId && {
+            correlationId: { DataType: "String", StringValue: message.attributes.correlationId },
+          }),
         },
       }),
       { abortSignal: this.shortTimeout() },
@@ -121,4 +126,18 @@ export class SqsMessageQueue implements MessageQueue {
 
     return QueueUrl;
   }
+}
+
+function stringAttributes(
+  attributes: Record<string, { StringValue?: string }> | undefined,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+
+  for (const [name, value] of Object.entries(attributes ?? {})) {
+    if (typeof value.StringValue === "string") {
+      result[name] = value.StringValue;
+    }
+  }
+
+  return result;
 }

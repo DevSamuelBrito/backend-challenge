@@ -5,9 +5,11 @@ import { Test } from "@nestjs/testing";
 import { AppModule } from "../../src/app.module";
 import { APP_CONFIG } from "../../src/config/config.module";
 import type { AppConfig } from "../../src/config/env";
+import { METRICS, type Metrics } from "../../src/shared/application/metrics.port";
 import { UNIT_OF_WORK, type UnitOfWork } from "../../src/shared/application/unit-of-work.port";
 import { createRepositories } from "../../src/shared/infrastructure/database/create-repositories";
 import { MikroOrmUnitOfWork } from "../../src/shared/infrastructure/database/mikro-orm-unit-of-work";
+import { PinoLoggerService } from "../../src/shared/infrastructure/observability/pino-logger";
 import { createMigratedDatabase, type TestDatabase } from "./database";
 import { createHttpClient, type HttpClient } from "./http";
 import { testConfig } from "./test-config";
@@ -22,6 +24,7 @@ export interface WalletApiOptions {
   wrapUnitOfWork?: (real: UnitOfWork) => UnitOfWork;
   lockTimeoutMs?: number;
   env?: Record<string, string>;
+  useAppLogger?: boolean;
 }
 
 export interface AppInstance {
@@ -62,11 +65,16 @@ export async function startInstance(
 
   if (wrapUnitOfWork) {
     builder = builder.overrideProvider(UNIT_OF_WORK).useFactory({
-      inject: [MikroORM, APP_CONFIG],
-      factory: (orm: ConstructorParameters<typeof MikroOrmUnitOfWork>[0], appConfig: AppConfig) =>
+      inject: [MikroORM, APP_CONFIG, METRICS],
+      factory: (
+        orm: ConstructorParameters<typeof MikroOrmUnitOfWork>[0],
+        appConfig: AppConfig,
+        metrics: Metrics,
+      ) =>
         wrapUnitOfWork(
           new MikroOrmUnitOfWork(orm, createRepositories, {
             lockTimeoutMs: appConfig.databaseLockTimeoutMs,
+            onLockTimeout: () => metrics.lockTimeout(),
           }),
         ),
     });
@@ -74,6 +82,11 @@ export async function startInstance(
 
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication({ logger: ["error"] });
+
+  if (options.useAppLogger) {
+    app.useLogger(app.get(PinoLoggerService));
+  }
+
   await app.listen(0, "127.0.0.1");
   const url = await app.getUrl();
 

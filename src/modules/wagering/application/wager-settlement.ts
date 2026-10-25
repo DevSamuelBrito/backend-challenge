@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ID_GENERATOR, type IdGenerator } from "../../../shared/application/id-generator.port";
+import { currentContext } from "../../../shared/application/request-context";
 import type { Repositories } from "../../../shared/application/unit-of-work.port";
 import type { EventContext, IntegrationEvent } from "../../../shared/events/integration-event";
 import type { OutboxRepository } from "../../messaging/application/outbox.repository";
@@ -179,7 +180,7 @@ export class WagerSettlement {
   }
 
   private contextFactory(transaction: WagerTransaction, at: Date): () => EventContext {
-    const correlationId = this.ids.next();
+    const correlationId = currentContext().correlationId ?? this.ids.next();
 
     return () => ({
       eventId: this.ids.next(),

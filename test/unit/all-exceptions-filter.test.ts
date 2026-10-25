@@ -155,10 +155,15 @@ describe("AllExceptionsFilter", () => {
     expect(JSON.stringify(result.body)).not.toContain("senha-secreta");
   });
 
-  test("falha inesperada é registrada em log com o detalhe", () => {
-    handle(new Error("detalhe-só-para-o-log"));
+  test("falha inesperada é registrada em log só com nome, código e frames, nunca com a mensagem", () => {
+    handle(Object.assign(new Error("detalhe-só-para-o-log"), { code: "23505" }));
 
-    expect(String(logged[0])).toContain("detalhe-só-para-o-log");
+    expect(logged[0]).toMatchObject({
+      event: "http.unhandled_error",
+      errorName: "Error",
+      errorCode: "23505",
+    });
+    expect(JSON.stringify(logged[0])).not.toContain("detalhe-só-para-o-log");
   });
 
   test("erros 5xx do parser e valores que não são Error também viram 500 genérico", () => {

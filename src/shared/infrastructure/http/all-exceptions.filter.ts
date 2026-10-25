@@ -6,6 +6,7 @@ import {
   Logger,
 } from "@nestjs/common";
 import { LockTimeoutError } from "../../application/persistence-errors";
+import { stackFramesOf, summarizeError } from "../../application/safe-error";
 import { ConflictError, DomainError, NotFoundError } from "../../domain/domain-error";
 
 interface HttpResponse {
@@ -93,9 +94,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return this.clientError(status, (exception as Error).message);
     }
 
-    this.logger.error(
-      exception instanceof Error ? (exception.stack ?? exception.message) : exception,
-    );
+    this.logger.error({
+      event: "http.unhandled_error",
+      ...summarizeError(exception),
+      stack: stackFramesOf(exception),
+    });
 
     return {
       status: 500,

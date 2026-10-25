@@ -8,6 +8,7 @@ import {
 import { APP_CONFIG } from "../../../config/config.module";
 import type { AppConfig } from "../../../config/env";
 import { CLOCK, type Clock } from "../../../shared/application/clock.port";
+import { describeError } from "../../../shared/application/safe-error";
 import { PeriodicRunner } from "../../../shared/infrastructure/scheduling/periodic-runner";
 import { PendingReferenceWorker } from "../application/pending-reference-worker";
 
@@ -31,9 +32,7 @@ export class PendingReferenceScheduler implements OnModuleInit, OnModuleDestroy 
       },
       config.pendingReference.tickIntervalMs,
       (error) =>
-        this.logger.error(
-          `Falha no tick do worker de PENDING_REFERENCE: ${error instanceof Error ? error.message : String(error)}`,
-        ),
+        this.logger.error({ event: "pending_worker.tick_failed", error: describeError(error) }),
     );
   }
 
