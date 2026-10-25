@@ -24,7 +24,7 @@ Para parar: `Ctrl+C` no terminal do console e `docker compose down -v` para a ap
 
 ## O que tem na tela
 
-- **Cartão do topo:** saldo atual da sua carteira, jogador e código da carteira. O botão "Atualizar saldo" busca o valor no servidor. A carteira fica salva no navegador.
+- **Cartão do topo:** saldo atual da sua carteira, jogador e código da carteira. O botão "Atualizar saldo" busca o valor no servidor. As carteiras que você cria ficam salvas neste navegador: use **"Trocar para uma carteira que você já criou"** para voltar a uma delas, ou cole o código (`walletId`) de qualquer carteira existente (por exemplo, uma criada por `curl`) e clique em "Usar". Cada carteira lembra a sua última aposta, prêmio e devolução, então os passos 3, 5, 6 e 7 continuam funcionando depois da troca.
 - **Menu da esquerda:** os passos. Os que você já fez ficam com o número verde.
 - **Histórico técnico (rodapé):** todas as chamadas feitas, com a resposta de cada uma.
 
@@ -40,11 +40,15 @@ Para parar: `Ctrl+C` no terminal do console e `docker compose down -v` para a ap
 | 5. Receber prêmio | WIN de 50.00 ligado à aposta | Processado, saldo sobe 50.00 |
 | 6. Devolver a aposta | REFUND da aposta | Processado, o valor da aposta volta |
 | 6. (outro botão) | Devolver de novo | Rejeitada: a aposta só pode ser revertida uma vez |
-| 7. Extrato e conferência | "Ver extrato" e "Conferir as contas" | Um movimento por linha; as contas fecham |
-| 8. Concorrência | Botões A e B, com 20 pedidos | A: 1 cobrada e 19 repetições. B: só as apostas que cabem no saldo são cobradas, as outras são rejeitadas e o saldo nunca fica negativo. Em carteira nova de 100.00 com apostas de 30.00: A deixa 70.00, B deixa 10.00 |
+| 7. Rollback | "Reverter o último movimento do extrato" | Pega o último lançamento da carteira (qualquer origem) e o reverte. BET: o valor volta e o saldo sobe; WIN ou REFUND: o valor sai e o saldo desce (sem saldo, é rejeitado). Se o último movimento já é um ROLLBACK ou a abertura (OPENING), o console avisa que não dá para reverter |
+| 7. (botões menores) | "Reverter a aposta do passo 2", "o prêmio do passo 5" ou "a devolução do passo 6" | Revertem especificamente essas transações feitas nos passos |
+| 7. (outro botão) | Reverter a mesma transação de novo | Rejeitada: só vale uma reversão por transação (inclusive uma BET que já foi devolvida no passo 6) |
+| 7. (demonstração) | "Apostar 10.00 e reverter com ROLLBACK" | Saldo cai 10.00 e volta; o segundo rollback da mesma aposta é rejeitado |
+| 8. Extrato e conferência | "Ver extrato" e "Conferir as contas" | Um movimento por linha; as contas fecham |
+| 9. Concorrência | Botões A e B, com 20 pedidos | A: 1 cobrada e 19 repetições. B: só as apostas que cabem no saldo são cobradas, as outras são rejeitadas e o saldo nunca fica negativo. Em carteira nova de 100.00 com apostas de 30.00: A deixa 70.00, B deixa 10.00 |
 | Avançado | Formulário livre, fila SQS, métricas e health | Para quem quer testar combinações |
 
-No passo 8 você escolhe a carteira: **a sua** (o saldo muda de verdade; o resultado depende do saldo que ela tinha) ou **uma carteira nova de 100.00** (resultado sempre previsível; a sua não é afetada). Marque "Espalhar o teste de concorrência entre as instâncias" (depois de subir `--scale app=3`) para as requisições irem a instâncias diferentes ao mesmo tempo. O resultado esperado é o mesmo, porque quem garante a consistência é o banco.
+No passo 9 você escolhe a carteira: **a sua** (o saldo muda de verdade; o resultado depende do saldo que ela tinha) ou **uma carteira nova de 100.00** (resultado sempre previsível; a sua não é afetada). Marque "Espalhar o teste de concorrência entre as instâncias" (depois de subir `--scale app=3`) para as requisições irem a instâncias diferentes ao mesmo tempo. O resultado esperado é o mesmo, porque quem garante a consistência é o banco.
 
 ## Por que existe um servidor do console
 

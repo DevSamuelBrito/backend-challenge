@@ -26,8 +26,12 @@
   .topbar b { font-size: 15px; }
   .topbar select { width: auto; margin: 0; padding: 4px 6px; }
   .topbar button { padding: 4px 10px; font-size: 13px; }
-  .layout { display: grid; grid-template-columns: 250px 1fr; gap: 20px; max-width: 1100px; margin: 0 auto; padding: 20px; }
-  @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
+  .layout { display: flex; flex-direction: column; gap: 20px; max-width: 1100px; margin: 0 auto; padding: 20px; }
+  .body { display: grid; grid-template-columns: 250px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 760px) {
+    .body { grid-template-columns: 1fr; }
+    nav { position: static; }
+  }
 
   .wallet { grid-column: 1 / -1; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
     padding: 16px 20px; display: flex; flex-wrap: wrap; gap: 8px 32px; align-items: center; }
@@ -35,6 +39,10 @@
   .wallet .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
   .wallet .none { color: var(--muted); }
   .wallet .mono { font-size: 12px; word-break: break-all; }
+  .wallet .switcher { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 20px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .wallet .switcher label { margin-bottom: 0; }
+  .wallet .paste { display: flex; gap: 8px; margin-top: 3px; }
+  .wallet .paste input { margin-top: 0; }
 
   nav { display: flex; flex-direction: column; gap: 4px; align-self: start; position: sticky; top: 12px; }
   nav button { text-align: left; padding: 9px 12px; border: 1px solid transparent; background: transparent;
@@ -116,8 +124,18 @@
       <div class="mono" id="walletIdText">—</div>
     </div>
     <button id="btnRefresh" title="Buscar o saldo atual no servidor">Atualizar saldo</button>
+    <div class="switcher">
+      <label>Trocar para uma carteira que você já criou
+        <select id="walletPicker"></select>
+      </label>
+      <label>… ou cole o código de uma carteira existente
+        <span class="paste"><input id="walletPaste" class="mono" placeholder="walletId"><button id="walletUse">Usar</button></span>
+      </label>
+    </div>
+    <div id="walletMsg" class="hint" style="flex-basis:100%;margin:0"></div>
   </div>
 
+  <div class="body">
   <nav id="nav"></nav>
 
   <div>
@@ -190,11 +208,33 @@
         <button id="s6-again">Tentar devolver de novo (outro pedido)</button>
       </div>
       <div id="s6-out"></div>
-      <div class="next"><button data-goto="5">← Voltar</button><button data-goto="7">Próximo: extrato e conferência →</button></div>
+      <div class="next"><button data-goto="5">← Voltar</button><button data-goto="7">Próximo: rollback →</button></div>
     </section>
 
     <section class="step" data-step="7">
-      <h2>7. Extrato e conferência</h2>
+      <h2>7. Rollback (reverter uma transação)</h2>
+      <p class="lead">Desfaz uma transação já processada, anulando o efeito dela no saldo.</p>
+      <div class="why"><b>O que isso testa</b>ROLLBACK reverte uma aposta (BET), um prêmio (WIN) ou uma devolução (REFUND). O valor tem que ser igual ao da transação revertida, e cada transação só pode ser revertida <u>uma vez</u>.</div>
+      <div class="actions">
+        <button class="primary" id="s7r-last">Reverter o último movimento do extrato</button>
+      </div>
+      <p class="hint">Olha o extrato da carteira atual, pega o <b>último lançamento</b> (qualquer que seja a origem: aposta, prêmio, devolução, teste de concorrência ou fila) e reverte com ROLLBACK. Só é possível reverter BET, WIN ou REFUND; se o último movimento já for um ROLLBACK, faça antes outra operação.</p>
+      <div class="actions">
+        <button id="s7r-bet">Reverter a aposta do passo 2</button>
+        <button id="s7r-win">Reverter o prêmio do passo 5</button>
+        <button id="s7r-refund">Reverter a devolução do passo 6</button>
+      </div>
+      <p class="hint"><b>Efeito no saldo:</b> reverter uma BET <b>soma</b> o valor da aposta de volta; reverter um WIN ou um REFUND <b>subtrai</b> o valor (sem saldo suficiente, é rejeitado). Se a aposta já foi devolvida no passo 6, reverter a mesma aposta é rejeitado: só vale uma reversão por transação.</p>
+      <div class="actions">
+        <button id="s7r-demo">Demonstração rápida: apostar 10.00 e reverter com ROLLBACK</button>
+      </div>
+      <p class="hint">A demonstração usa uma aposta nova e mostra o saldo antes de cada movimento.</p>
+      <div id="s7r-out"></div>
+      <div class="next"><button data-goto="6">← Voltar</button><button data-goto="8">Próximo: extrato e conferência →</button></div>
+    </section>
+
+    <section class="step" data-step="8">
+      <h2>8. Extrato e conferência</h2>
       <p class="lead">Mostra todos os lançamentos da carteira e confere se as contas fecham.</p>
       <div class="why"><b>O que isso testa</b>O extrato (ledger) nunca é apagado nem alterado. A conferência recalcula o saldo somando o extrato e compara com o saldo guardado: tem que bater.</div>
       <div class="actions">
@@ -202,11 +242,11 @@
         <button class="primary" id="s7-recon">Conferir as contas</button>
       </div>
       <div id="s7-out"></div>
-      <div class="next"><button data-goto="6">← Voltar</button><button data-goto="8">Próximo: teste de concorrência →</button></div>
+      <div class="next"><button data-goto="7">← Voltar</button><button data-goto="9">Próximo: teste de concorrência →</button></div>
     </section>
 
-    <section class="step" data-step="8">
-      <h2>8. Teste de concorrência</h2>
+    <section class="step" data-step="9">
+      <h2>9. Teste de concorrência</h2>
       <p class="lead">Dispara vários pedidos ao mesmo tempo, na sua carteira ou numa carteira nova só para o teste.</p>
       <div class="why"><b>O que isso testa</b>Mesmo com muitos pedidos simultâneos, o dinheiro não duplica nem fica negativo.</div>
       <div class="fields">
@@ -226,10 +266,10 @@
       <p class="hint"><b>A:</b> esperado: só 1 aposta cobrada, e as outras são repetições reconhecidas.<br>
         <b>B:</b> esperado: são cobradas só as apostas que cabem no saldo (com 100.00 e apostas de 30.00, são 3), as demais são rejeitadas por saldo, e o saldo nunca fica negativo.</p>
       <div id="s8-out"></div>
-      <div class="next"><button data-goto="7">← Voltar</button><button data-goto="9">Avançado →</button></div>
+      <div class="next"><button data-goto="8">← Voltar</button><button data-goto="10">Avançado →</button></div>
     </section>
 
-    <section class="step" data-step="9">
+    <section class="step" data-step="10">
       <h2>Avançado</h2>
       <p class="lead">Formulário livre, fila SQS, health e métricas.</p>
       <div class="fields">
@@ -254,8 +294,9 @@
       </div>
       <p class="hint">Pela fila SQS o processamento é assíncrono: espere alguns segundos e clique em "Atualizar saldo".</p>
       <div id="s9-out"></div>
-      <div class="next"><button data-goto="8">← Voltar</button><span></span></div>
+      <div class="next"><button data-goto="9">← Voltar</button><span></span></div>
     </section>
+  </div>
   </div>
 
   <div class="log">
@@ -273,7 +314,7 @@ const store = {
   get(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem(key, value); } catch {} },
 };
-const STEPS = ["Criar carteira", "Fazer uma aposta", "Repetir a aposta", "Apostar demais", "Receber prêmio", "Devolver a aposta", "Extrato e conferência", "Concorrência", "Avançado"];
+const STEPS = ["Criar carteira", "Fazer uma aposta", "Repetir a aposta", "Apostar demais", "Receber prêmio", "Devolver a aposta", "Rollback", "Extrato e conferência", "Concorrência", "Avançado"];
 const REASONS = {
   INSUFFICIENT_FUNDS: "saldo insuficiente",
   CURRENCY_MISMATCH: "a moeda da operação é diferente da moeda da carteira",
@@ -286,11 +327,27 @@ const REASONS = {
   REVERSAL_INSUFFICIENT_FUNDS: "não há saldo para fazer a reversão",
 };
 
-const state = { walletId: "", playerId: "", lastBet: null, requestLog: [], instances: [] };
+const state = { walletId: "", playerId: "", lastBet: null, lastWin: null, lastRefund: null, memoryByWallet: {}, requestLog: [], instances: [] };
+
+function saveWalletMemory() {
+  if (state.walletId) state.memoryByWallet[state.walletId] = { bet: state.lastBet, win: state.lastWin, refund: state.lastRefund };
+}
+function restoreWalletMemory(id) {
+  const memory = state.memoryByWallet[id] ?? {};
+  state.lastBet = memory.bet ?? null;
+  state.lastWin = memory.win ?? null;
+  state.lastRefund = memory.refund ?? null;
+}
 const rand = () => Math.random().toString(36).slice(2, 8);
 const esc = (text) => String(text).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
 const pretty = (value) => (typeof value === "string" ? value : JSON.stringify(value, null, 2));
-const money = (amount, currency = "BRL") => ({ amount, currency });
+function normalizeAmount(raw) {
+  const text = String(raw).trim().replace(",", ".");
+  if (/^\d+$/.test(text)) return `${text}.00`;
+  if (/^\d+\.\d$/.test(text)) return `${text}0`;
+  return text;
+}
+const money = (amount, currency = "BRL") => ({ amount: normalizeAmount(amount), currency });
 const fmt = (m) => (m ? `${m.amount} ${m.currency}` : "—");
 
 async function call(method, path, { body, headers = {}, target = $("target").value, log = true } = {}) {
@@ -336,6 +393,9 @@ function verdict(entry) {
       ? { tone: "warn", text: `O sistema reconheceu o pedido repetido e NÃO processou de novo. O saldo continua ${balance}.`, tag: "Isso é o resultado correto: idempotência." }
       : { tone: "ok", text: `Processado com sucesso. Saldo agora: ${balance}.` };
   }
+  if (entry.status === 400 && d.code === "INVALID_MONEY") {
+    return { tone: "bad", text: "Valor inválido. Use ponto e duas casas decimais, como 100.00 (não vale 100, 100.5, 0.00 nem negativo).", tag: "Nada foi enviado ao banco: a validação recusou antes de processar." };
+  }
   if (entry.status === 202) return { tone: "warn", text: "Aguardando a transação de referência chegar. O sistema vai tentar de novo sozinho.", tag: d.status };
   if (entry.status === 422 && d.status === "REJECTED") {
     return { tone: "bad", text: `Rejeitado: ${REASONS[d.failureCode] || d.failureCode}. O saldo continua ${balance}.${replay}`, tag: `Isso é esperado quando a regra de negócio não permite. Motivo técnico: ${d.failureCode}` };
@@ -352,7 +412,7 @@ function verdict(entry) {
 function show(boxId, entry, extra = "") {
   const v = verdict(entry);
   $(boxId).innerHTML = `<div class="verdict ${v.tone}">${esc(v.text)}${v.tag ? `<span class="tag">${esc(v.tag)}</span>` : ""}</div>${extra}
-    <details class="tech"><summary>Ver resposta técnica (HTTP ${entry.status || "erro"}, ${entry.ms} ms)</summary><pre>${esc(pretty(entry.data))}</pre></details>`;
+    <details class="tech" open><summary>Ver resposta técnica (HTTP ${entry.status || "erro"}, ${entry.ms} ms)</summary><pre>${esc(pretty(entry.data))}</pre></details>`;
 }
 
 function renderWallet(data) {
@@ -363,6 +423,49 @@ function setWallet(walletId) {
   state.walletId = walletId;
   store.set("walletId", walletId);
   $("walletIdText").textContent = walletId || "—";
+  renderPicker();
+}
+
+function knownWallets() {
+  try { return JSON.parse(store.get("wallets", "[]")); } catch { return []; }
+}
+function rememberWallet(id, playerId) {
+  const list = knownWallets().filter((wallet) => wallet.id !== id);
+  list.unshift({ id, playerId });
+  store.set("wallets", JSON.stringify(list.slice(0, 30)));
+  renderPicker();
+}
+function forgetWallet(id) {
+  store.set("wallets", JSON.stringify(knownWallets().filter((wallet) => wallet.id !== id)));
+  renderPicker();
+}
+function renderPicker() {
+  const list = knownWallets();
+  $("walletPicker").innerHTML = list.length
+    ? list.map((wallet) => `<option value="${esc(wallet.id)}"${wallet.id === state.walletId ? " selected" : ""}>${esc(wallet.playerId)} · ${esc(wallet.id.slice(0, 8))}…</option>`).join("")
+    : `<option value="">(nenhuma criada neste navegador ainda)</option>`;
+}
+
+async function switchWallet(id) {
+  const entry = await call("GET", `/wallets/${encodeURIComponent(id)}`);
+  const message = $("walletMsg");
+
+  if (entry.status !== 200) {
+    message.textContent = entry.status === 404
+      ? "Essa carteira não existe no banco (o banco pode ter sido apagado). Removi da lista."
+      : `Não consegui abrir essa carteira (HTTP ${entry.status || "erro"}).`;
+    if (entry.status === 404) forgetWallet(id);
+    renderPicker();
+    return false;
+  }
+
+  saveWalletMemory();
+  restoreWalletMemory(id);
+  setWallet(id);
+  renderWallet(entry.data);
+  rememberWallet(id, entry.data.playerId);
+  message.textContent = `Carteira de ${entry.data.playerId} selecionada. Os próximos passos usam esta carteira.`;
+  return true;
 }
 async function refreshBalance() {
   if (!state.walletId) return null;
@@ -410,7 +513,7 @@ function goto(step) {
   window.scrollTo({ top: 0 });
 }
 function buildNav() {
-  $("nav").innerHTML = STEPS.map((title, i) => `${i === 8 ? "<hr>" : ""}<button data-step="${i + 1}"><span class="n">${i === 8 ? "+" : i + 1}</span>${title}</button>`).join("");
+  $("nav").innerHTML = STEPS.map((title, i) => `${i === 9 ? "<hr>" : ""}<button data-step="${i + 1}"><span class="n">${i === 9 ? "+" : i + 1}</span>${title}</button>`).join("");
   $("nav").addEventListener("click", (event) => { const b = event.target.closest("button[data-step]"); if (b) goto(b.dataset.step); });
   document.addEventListener("click", (event) => { const b = event.target.closest("button[data-goto]"); if (b) goto(b.dataset.goto); });
 }
@@ -433,15 +536,28 @@ async function detectInstances() {
 
 $("redetect").onclick = detectInstances;
 $("btnRefresh").onclick = refreshBalance;
+$("walletPicker").onchange = () => {
+  if ($("walletPicker").value && $("walletPicker").value !== state.walletId) switchWallet($("walletPicker").value);
+};
+$("walletUse").onclick = async () => {
+  const id = $("walletPaste").value.trim();
+  if (!id) { $("walletMsg").textContent = "Cole o código da carteira (walletId) no campo."; return; }
+  if (await switchWallet(id)) $("walletPaste").value = "";
+};
 
 $("s1-go").onclick = async () => {
   const playerId = $("s1-player").value.trim();
   const entry = await call("POST", "/wallets", { body: { playerId, initialBalance: money($("s1-amount").value, $("s1-currency").value) } });
   show("s1-out", entry);
   if (entry.status === 201) {
+    saveWalletMemory();
     setWallet(entry.data.id);
     renderWallet(entry.data);
+    rememberWallet(entry.data.id, entry.data.playerId);
+    $("walletMsg").textContent = "";
     state.lastBet = null;
+    state.lastWin = null;
+    state.lastRefund = null;
     markDone(1);
     $("s1-player").value = `jogador-${rand()}`;
   }
@@ -474,23 +590,119 @@ $("s4-go").onclick = async () => {
 
 $("s5-go").onclick = async () => {
   if (!needBet("s5-out")) return;
-  const entry = await sendAndShow("s5-out", txBody({
+  const body = txBody({
     externalTransactionId: `win-${rand()}`, kind: "WIN", money: money($("s5-amount").value),
     referenceExternalTransactionId: state.lastBet.body.externalTransactionId,
-  }));
-  if (entry.status === 200) markDone(5);
+  });
+  const entry = await sendAndShow("s5-out", body);
+  if (entry.status === 200) { state.lastWin = { body, key: keyOf(body) }; markDone(5); }
 };
 
 async function refund(boxId) {
   if (!needBet(boxId)) return;
-  const entry = await sendAndShow(boxId, txBody({
+  const body = txBody({
     externalTransactionId: `refund-${rand()}`, kind: "REFUND", money: state.lastBet.body.money,
     referenceExternalTransactionId: state.lastBet.body.externalTransactionId,
-  }));
+  });
+  const entry = await sendAndShow(boxId, body);
+  if (entry.status === 200) state.lastRefund = { body, key: keyOf(body) };
   if (entry.status === 200 || entry.status === 422) markDone(6);
 }
 $("s6-go").onclick = () => refund("s6-out");
 $("s6-again").onclick = () => refund("s6-out");
+
+function rollbackBody(reference) {
+  return txBody({
+    externalTransactionId: `rollback-${rand()}`, kind: "ROLLBACK", money: reference.body.money,
+    referenceExternalTransactionId: reference.body.externalTransactionId,
+  });
+}
+async function rollback(reference, missing) {
+  if (!needWallet("s7r-out")) return;
+  if (!reference) {
+    $("s7r-out").innerHTML = `<div class="verdict warn">${missing}</div>`;
+    return;
+  }
+  const entry = await sendAndShow("s7r-out", rollbackBody(reference));
+  if (entry.status === 200 || entry.status === 422) markDone(7);
+}
+async function lastLedgerEntry() {
+  let cursor = "";
+  let last = null;
+
+  for (let page = 0; page < 100; page += 1) {
+    const query = `limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const entry = await call("GET", `/wallets/${state.walletId}/ledger?${query}`, { log: false });
+
+    if (entry.status !== 200) return { error: entry };
+    if (entry.data.items.length > 0) last = entry.data.items[entry.data.items.length - 1];
+    if (!entry.data.nextCursor) break;
+    cursor = entry.data.nextCursor;
+  }
+
+  return { last };
+}
+
+$("s7r-last").onclick = async () => {
+  if (!needWallet("s7r-out")) return;
+  const found = await lastLedgerEntry();
+
+  if (found.error) return show("s7r-out", found.error);
+  if (!found.last) {
+    $("s7r-out").innerHTML = `<div class="verdict warn">Essa carteira ainda não tem movimentos no extrato.</div>`;
+    return;
+  }
+
+  const detail = await call("GET", `/wagering/transactions/${found.last.transactionId}`, { log: false });
+  const d = detail.data;
+
+  if (detail.status !== 200) return show("s7r-out", detail);
+
+  const label = `${d.kind} de ${d.money.amount} ${d.money.currency} (${d.externalTransactionId}), saldo ${found.last.balanceBefore.amount} → ${found.last.balanceAfter.amount}`;
+
+  if (!["BET", "WIN", "REFUND"].includes(d.kind)) {
+    $("s7r-out").innerHTML = `<div class="hint">Último movimento do extrato: ${esc(label)}.</div>
+      <div class="verdict warn">O sistema só permite ROLLBACK de BET, WIN ou REFUND, e o último movimento é ${esc(d.kind)}. Faça antes outra operação (por exemplo, uma aposta) e tente de novo.</div>`;
+    return;
+  }
+
+  const body = {
+    providerId: d.providerId, playerId: d.playerId, walletId: d.walletId, roundId: d.roundId, gameId: d.gameId,
+    externalTransactionId: `rollback-${rand()}`, kind: "ROLLBACK", money: d.money,
+    referenceExternalTransactionId: d.externalTransactionId,
+  };
+  const entry = await sendAndShow("s7r-out", body);
+  $("s7r-out").insertAdjacentHTML("afterbegin", `<div class="hint">Último movimento do extrato: ${esc(label)}. Foi enviado o ROLLBACK dele.</div>`);
+  if (entry.status === 200 || entry.status === 422) markDone(7);
+};
+
+$("s7r-bet").onclick = () => rollback(state.lastBet, "Faça uma aposta primeiro (passo 2).");
+$("s7r-win").onclick = () => rollback(state.lastWin, "Receba um prêmio primeiro (passo 5).");
+$("s7r-refund").onclick = () => rollback(state.lastRefund, "Devolva uma aposta primeiro (passo 6).");
+
+function stepBlock(title, entry) {
+  const v = verdict(entry);
+  return `<div class="verdict ${v.tone}"><b>${esc(title)}</b><br>${esc(v.text)}${v.tag ? `<span class="tag">${esc(v.tag)}</span>` : ""}</div>
+    <details class="tech" open><summary>Ver resposta técnica (HTTP ${entry.status || "erro"}, ${entry.ms} ms)</summary><pre>${esc(pretty(entry.data))}</pre></details>`;
+}
+$("s7r-demo").onclick = async () => {
+  if (!needWallet("s7r-out")) return;
+  const before = await call("GET", `/wallets/${state.walletId}`, { log: false });
+  const bet = txBody({ externalTransactionId: `bet-${rand()}`, kind: "BET", money: money("10.00") });
+  const placed = await send(bet);
+  let html = `<div class="hint">Saldo antes: <b>${fmt(before.data && before.data.balance)}</b></div>${stepBlock("1. Aposta de 10.00", placed)}`;
+
+  if (placed.status === 200) {
+    const reverted = await send(rollbackBody({ body: bet }));
+    html += stepBlock("2. ROLLBACK dessa aposta", reverted);
+    const again = await send(rollbackBody({ body: bet }));
+    html += stepBlock("3. Segundo ROLLBACK da mesma aposta (deve ser rejeitado)", again);
+    markDone(7);
+  }
+
+  $("s7r-out").innerHTML = html;
+  await refreshBalance();
+};
 
 $("s7-ledger").onclick = async () => {
   if (!needWallet("s7-out")) return;
@@ -499,8 +711,8 @@ $("s7-ledger").onclick = async () => {
   const rows = entry.data.items.map((item) =>
     `<tr><td>${item.walletVersion}</td><td class="${item.direction === "CREDIT" ? "in" : "out"}">${item.direction === "CREDIT" ? "entrou" : "saiu"}</td><td class="mono">${item.money.amount}</td><td class="mono">${item.balanceBefore.amount} → ${item.balanceAfter.amount}</td></tr>`).join("");
   $("s7-out").innerHTML = `<table><thead><tr><th>#</th><th>Movimento</th><th>Valor</th><th>Saldo (antes → depois)</th></tr></thead><tbody>${rows || `<tr><td colspan="4" class="muted">Extrato vazio</td></tr>`}</tbody></table>
-    <details class="tech"><summary>Ver resposta técnica</summary><pre>${esc(pretty(entry.data))}</pre></details>`;
-  markDone(7);
+    <details class="tech" open><summary>Ver resposta técnica</summary><pre>${esc(pretty(entry.data))}</pre></details>`;
+  markDone(8);
 };
 $("s7-recon").onclick = async () => {
   if (!needWallet("s7-out")) return;
@@ -511,8 +723,8 @@ $("s7-recon").onclick = async () => {
     ? `As contas fecham. O saldo guardado (${fmt(d.storedBalance)}) é igual ao saldo recalculado pelo extrato (${fmt(d.calculatedBalance)}), conferidos ${d.checkedEntries} lançamentos.`
     : `ATENÇÃO: as contas NÃO fecham. Guardado ${fmt(d.storedBalance)}, recalculado ${fmt(d.calculatedBalance)}.`;
   $("s7-out").innerHTML = `<div class="verdict ${d.consistent ? "ok" : "bad"}">${esc(text)}</div>
-    <details class="tech"><summary>Ver resposta técnica</summary><pre>${esc(pretty(d))}</pre></details>`;
-  markDone(7);
+    <details class="tech" open><summary>Ver resposta técnica</summary><pre>${esc(pretty(d))}</pre></details>`;
+  markDone(8);
 };
 
 async function concurrency(button, mode) {
@@ -563,7 +775,7 @@ async function concurrency(button, mode) {
       ${consistent ? "As contas fecham (conferência do extrato OK)." : "ATENÇÃO: as contas NÃO fecham."}
       <span class="tag">${count} pedidos em ${elapsed} ms, em ${targets.length} instância(s).</span></div>`;
   if (useMine) renderWallet(final.data);
-  markDone(8);
+  markDone(9);
   button.disabled = false;
 }
 $("s8-same").onclick = (e) => concurrency(e.currentTarget, "same");
@@ -584,13 +796,42 @@ $("s9-http").onclick = async () => {
 };
 $("s9-sqs").onclick = async () => {
   if (!needWallet("s9-out")) return;
+  const provider = encodeURIComponent($("s9-provider").value);
+  const external = encodeURIComponent($("s9-ext").value);
+  const lookup = () => call("GET", `/providers/${provider}/wagering/transactions/${external}`, { log: false });
+  const existed = (await lookup()).status === 200;
   const started = performance.now();
   const reply = await fetch("/sqs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...advancedBody(), idempotencyKey: $("s9-key").value }) });
   const data = await reply.json();
   const entry = { at: new Date().toLocaleTimeString(), label: "SQS wager-transactions.fifo", status: reply.status, ms: Math.round(performance.now() - started), data };
   addLog(entry);
-  $("s9-out").innerHTML = `<div class="verdict ${data.enqueued ? "ok" : "bad"}">${data.enqueued ? "Mensagem enfileirada. O servidor processa em segundos: clique em “Atualizar saldo”." : "Não consegui enviar para a fila."}</div>
-    <details class="tech"><summary>Ver resposta técnica</summary><pre>${esc(pretty(data))}</pre></details>`;
+  const technical = `<details class="tech" open><summary>Ver resposta técnica</summary><pre>${esc(pretty(data))}</pre></details>`;
+
+  if (!data.enqueued) {
+    $("s9-out").innerHTML = `<div class="verdict bad">Não consegui enviar para a fila.</div>${technical}`;
+    return;
+  }
+
+  if (existed) {
+    $("s9-out").innerHTML = `<div class="verdict warn">Mensagem enfileirada, mas esse ID externo (${esc($("s9-ext").value)}) <b>já foi processado antes</b>. O sistema vai reconhecer como repetição e o saldo <b>não muda</b>. Clique em “Novo ID externo” para enviar uma operação nova.<span class="tag">Isso é a idempotência funcionando, também pela fila.</span></div>${technical}`;
+    return;
+  }
+
+  $("s9-out").innerHTML = `<div class="verdict warn">Mensagem enfileirada. Aguardando o servidor processar…</div>${technical}`;
+
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    await new Promise((done) => setTimeout(done, 1000));
+    const found = await lookup();
+
+    if (found.status === 200) {
+      await refreshBalance();
+      $("s9-out").innerHTML = `<div class="verdict ok">Processada pela fila em cerca de ${attempt + 1} s. Status: ${esc(found.data.status)}. Saldo atualizado no cartão do topo.</div>
+        <details class="tech" open><summary>Ver a transação</summary><pre>${esc(pretty(found.data))}</pre></details>`;
+      return;
+    }
+  }
+
+  $("s9-out").innerHTML = `<div class="verdict bad">A mensagem foi enfileirada, mas não apareceu como processada em 15 s. Veja o histórico técnico e <span class="mono">docker compose logs app</span>.</div>${technical}`;
 };
 $("s9-find").onclick = async () => {
   const entry = await call("GET", `/providers/${encodeURIComponent($("s9-provider").value)}/wagering/transactions/${encodeURIComponent($("s9-ext").value)}`);
@@ -616,8 +857,15 @@ $("s9-provider").addEventListener("input", () => { $("s9-key").value = `${$("s9-
   if (saved) {
     setWallet(saved);
     const entry = await refreshBalance();
-    if (!entry || entry.status !== 200) { setWallet(""); $("balance").innerHTML = `<span class="none">—</span>`; }
+    if (!entry || entry.status !== 200) {
+      forgetWallet(saved);
+      setWallet("");
+      $("balance").innerHTML = `<span class="none">—</span>`;
+    } else {
+      rememberWallet(saved, entry.data.playerId);
+    }
   }
+  renderPicker();
   goto(state.walletId ? store.get("step", "1") : "1");
 })();
 </script>
