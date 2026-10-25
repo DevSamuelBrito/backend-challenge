@@ -26,6 +26,17 @@ export interface OutboxConfig {
   alertAttempts: number;
 }
 
+export interface ConsumerConfig {
+  waitSeconds: number;
+  batchSize: number;
+  concurrency: number;
+  visibilityTimeoutSeconds: number;
+  backoffBaseSeconds: number;
+  backoffMaxSeconds: number;
+  sdkTimeoutMs: number;
+  shutdownTimeoutMs: number;
+}
+
 export interface AppConfig {
   port: number;
   roles: readonly AppRole[];
@@ -33,17 +44,64 @@ export interface AppConfig {
   databaseLockTimeoutMs: number;
   pendingReference: PendingReferenceConfig;
   outbox: OutboxConfig;
+  consumer: ConsumerConfig;
   sqs: SqsConfig;
 }
 
-function positiveInteger(env: Record<string, string | undefined>, name: string, fallback: number) {
+const SQS_MAX_LONG_POLL_SECONDS = 20;
+const SQS_MAX_BATCH = 10;
+const SQS_MAX_VISIBILITY_SECONDS = 43_200;
+
+function positiveInteger(
+  env: Record<string, string | undefined>,
+  name: string,
+  fallback: number,
+  max = Number.MAX_SAFE_INTEGER,
+) {
   const value = Number(env[name] ?? fallback);
 
-  if (!Number.isInteger(value) || value <= 0) {
+  if (!Number.isInteger(value) || value <= 0 || value > max) {
     throw new Error(`${name} inválido: ${env[name]}`);
   }
 
   return value;
+}
+
+function loadConsumerConfig(env: Record<string, string | undefined>): ConsumerConfig {
+  const backoffBaseSeconds = positiveInteger(
+    env,
+    "CONSUMER_BACKOFF_BASE_SECONDS",
+    1,
+    SQS_MAX_VISIBILITY_SECONDS,
+  );
+  const backoffMaxSeconds = positiveInteger(
+    env,
+    "CONSUMER_BACKOFF_MAX_SECONDS",
+    60,
+    SQS_MAX_VISIBILITY_SECONDS,
+  );
+
+  if (backoffMaxSeconds < backoffBaseSeconds) {
+    throw new Error(
+      `CONSUMER_BACKOFF_MAX_SECONDS (${backoffMaxSeconds}) não pode ser menor que CONSUMER_BACKOFF_BASE_SECONDS (${backoffBaseSeconds})`,
+    );
+  }
+
+  return {
+    waitSeconds: positiveInteger(env, "CONSUMER_WAIT_SECONDS", 20, SQS_MAX_LONG_POLL_SECONDS),
+    batchSize: positiveInteger(env, "CONSUMER_BATCH_SIZE", 10, SQS_MAX_BATCH),
+    concurrency: positiveInteger(env, "CONSUMER_CONCURRENCY", 5),
+    visibilityTimeoutSeconds: positiveInteger(
+      env,
+      "CONSUMER_VISIBILITY_TIMEOUT_SECONDS",
+      30,
+      SQS_MAX_VISIBILITY_SECONDS,
+    ),
+    backoffBaseSeconds,
+    backoffMaxSeconds,
+    sdkTimeoutMs: positiveInteger(env, "CONSUMER_SDK_TIMEOUT_MS", 5000),
+    shutdownTimeoutMs: positiveInteger(env, "CONSUMER_SHUTDOWN_TIMEOUT_MS", 30_000),
+  };
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
@@ -86,6 +144,12 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     );
   }
 
+  if (sqs.transactionsQueue === sqs.transactionsDlq) {
+    throw new Error(
+      `SQS_TRANSACTIONS_DLQ não pode ser a própria fila de entrada: ${sqs.transactionsDlq}`,
+    );
+  }
+
   return {
     port,
     roles: rawRoles as AppRole[],
@@ -103,6 +167,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       sendTimeoutMs: positiveInteger(env, "OUTBOX_SEND_TIMEOUT_MS", 3000),
       alertAttempts: positiveInteger(env, "OUTBOX_ALERT_ATTEMPTS", 10),
     },
+    consumer: loadConsumerConfig(env),
     sqs,
   };
 }

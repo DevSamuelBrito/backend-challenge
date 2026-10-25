@@ -1,7 +1,9 @@
 import type { EntityManager } from "@mikro-orm/postgresql";
+import { AggregateNotFoundError } from "../../../shared/application/persistence-errors";
 import type { InboxReceipt, InboxRepository } from "../application/inbox.repository";
 import type { InboxMessage } from "../domain/inbox-message";
 import { inboxMessageMapper } from "./inbox-message.mapper";
+import { InboxMessageSchema } from "./inbox-message.schema";
 
 const INSERT_IGNORING_DUPLICATES = `
   insert into inbox_messages (consumer_name, message_id, payload_hash, received_at, processed_at)
@@ -48,5 +50,19 @@ export class MikroOrmInboxRepository implements InboxRepository {
     }
 
     return { isNew: false, storedPayloadHash: stored[0].payload_hash };
+  }
+
+  async markProcessed(message: InboxMessage): Promise<void> {
+    const { consumerName, messageId, processedAt } = inboxMessageMapper.toRecord(message);
+
+    const updated = await this.em.nativeUpdate(
+      InboxMessageSchema,
+      { consumerName, messageId },
+      { processedAt },
+    );
+
+    if (updated === 0) {
+      throw new AggregateNotFoundError("InboxMessage", `${consumerName}/${messageId}`);
+    }
   }
 }

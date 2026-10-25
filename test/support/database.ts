@@ -9,6 +9,25 @@ import { testConfig } from "./test-config";
 const MIGRATIONS_DIR = "migrations";
 const TEMPLATE_LOCK_KEY = 7_770_001;
 
+export const HARNESS_APPLICATION = "test-harness";
+
+export async function setDatabaseAvailable(database: TestDatabase, available: boolean) {
+  await withAdminClient(async (admin) => {
+    await admin.query(
+      `alter database "${database.name}" with allow_connections ${available ? "true" : "false"}`,
+    );
+
+    if (!available) {
+      await admin.query(
+        `select pg_terminate_backend(pid)
+           from pg_stat_activity
+          where datname = $1 and application_name <> $2`,
+        [database.name, HARNESS_APPLICATION],
+      );
+    }
+  });
+}
+
 export interface TestDatabase {
   name: string;
   url: string;
@@ -101,7 +120,7 @@ async function createDatabase(template: string | undefined): Promise<TestDatabas
   const clients: Client[] = [];
 
   const connect = async (): Promise<Client> => {
-    const client = new Client({ connectionString: url });
+    const client = new Client({ connectionString: url, application_name: HARNESS_APPLICATION });
     await client.connect();
     clients.push(client);
     return client;

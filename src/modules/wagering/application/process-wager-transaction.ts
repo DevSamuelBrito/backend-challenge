@@ -7,6 +7,9 @@ import {
   type UnitOfWork,
 } from "../../../shared/application/unit-of-work.port";
 import type { Money } from "../../../shared/domain/money";
+import type { InboxRepository } from "../../messaging/application/inbox.repository";
+import { InboxMessage } from "../../messaging/domain/inbox-message";
+import { InboxPayloadMismatchError } from "../../messaging/domain/messaging-errors";
 import type { Wallet } from "../../wallet/domain/wallet";
 import { WalletNotFoundError } from "../../wallet/domain/wallet-errors";
 import type { WalletLedgerEntry } from "../../wallet/domain/wallet-ledger-entry";
@@ -17,7 +20,7 @@ import {
   ExternalTransactionConflictError,
   IdempotencyConflictError,
 } from "../domain/wager-transaction-errors";
-import { computePayloadHash } from "./payload-hash";
+import { computeInboxPayloadHash, computePayloadHash } from "./payload-hash";
 import type { ProcessWagerTransactionCommand } from "./process-wager-transaction.command";
 import { WagerSettlement } from "./wager-settlement";
 import { DuplicateTransactionError } from "./wagering-errors";
@@ -30,6 +33,21 @@ export interface ProcessWagerTransactionResult {
   idempotentReplay: boolean;
 }
 
+export interface InboxContext {
+  consumerName: string;
+  messageId: string;
+}
+
+export interface MessageAlreadyProcessed {
+  messageAlreadyProcessed: true;
+}
+
+export function isMessageAlreadyProcessed(
+  outcome: ProcessWagerTransactionResult | MessageAlreadyProcessed,
+): outcome is MessageAlreadyProcessed {
+  return "messageAlreadyProcessed" in outcome;
+}
+
 @Injectable()
 export class ProcessWagerTransaction {
   constructor(
@@ -39,26 +57,35 @@ export class ProcessWagerTransaction {
     private readonly settlement: WagerSettlement,
   ) {}
 
-  async execute(command: ProcessWagerTransactionCommand): Promise<ProcessWagerTransactionResult> {
+  execute(command: ProcessWagerTransactionCommand): Promise<ProcessWagerTransactionResult>;
+  execute(
+    command: ProcessWagerTransactionCommand,
+    inbox: InboxContext,
+  ): Promise<ProcessWagerTransactionResult | MessageAlreadyProcessed>;
+  async execute(
+    command: ProcessWagerTransactionCommand,
+    inbox?: InboxContext,
+  ): Promise<ProcessWagerTransactionResult | MessageAlreadyProcessed> {
     const payloadHash = computePayloadHash(command);
 
     try {
-      return await this.attempt(command, payloadHash);
+      return await this.attempt(command, payloadHash, inbox);
     } catch (error) {
       if (!(error instanceof DuplicateTransactionError)) {
         throw error;
       }
     }
 
-    return this.retryAfterDuplicate(command, payloadHash);
+    return this.retryAfterDuplicate(command, payloadHash, inbox);
   }
 
   private async retryAfterDuplicate(
     command: ProcessWagerTransactionCommand,
     payloadHash: string,
-  ): Promise<ProcessWagerTransactionResult> {
+    inbox: InboxContext | undefined,
+  ): Promise<ProcessWagerTransactionResult | MessageAlreadyProcessed> {
     try {
-      return await this.attempt(command, payloadHash);
+      return await this.attempt(command, payloadHash, inbox);
     } catch (error) {
       if (error instanceof DuplicateTransactionError) {
         throw this.conflictFor(error, command);
@@ -71,53 +98,104 @@ export class ProcessWagerTransaction {
   private attempt(
     command: ProcessWagerTransactionCommand,
     payloadHash: string,
-  ): Promise<ProcessWagerTransactionResult> {
+    inbox: InboxContext | undefined,
+  ): Promise<ProcessWagerTransactionResult | MessageAlreadyProcessed> {
     const at = this.clock.now();
 
     return this.unitOfWork.run(async (repositories) => {
-      const wallet = await repositories.wallets.findByIdForUpdate(command.walletId);
+      const received = inbox
+        ? await this.receive(repositories.inbox, command, inbox, at)
+        : undefined;
 
-      if (!wallet) {
-        throw new WalletNotFoundError(command.walletId);
+      if (received === "duplicate") {
+        return { messageAlreadyProcessed: true };
       }
 
-      const known = await this.findKnown(repositories, command, payloadHash);
+      const result = await this.process(repositories, command, payloadHash, at);
 
-      if (known) {
-        return this.resultOf(known, wallet, true);
+      if (received) {
+        received.markProcessed(at);
+        await repositories.inbox.markProcessed(received);
       }
 
-      const transaction = WagerTransaction.create({
-        id: this.ids.next(),
-        providerId: command.providerId,
-        externalTransactionId: command.externalTransactionId,
-        idempotencyKey: command.idempotencyKey,
-        payloadHash,
-        walletId: command.walletId,
-        playerId: command.playerId,
-        roundId: command.roundId,
-        gameId: command.gameId,
-        kind: command.kind,
-        money: command.money,
-        referenceExternalTransactionId: command.referenceExternalTransactionId,
-        createdAt: at,
-      });
-
-      const settled = await this.settlement.settle(repositories, wallet, transaction, at);
-
-      if (settled.kind === "waiting") {
-        transaction.markPendingReference(new Date(at.getTime() + backoffDelayMs(0)));
-      }
-
-      await this.persist(repositories, {
-        wallet,
-        transaction,
-        entry: settled.kind === "settled" ? settled.entry : undefined,
-        at,
-      });
-
-      return this.resultOf(transaction, wallet, false);
+      return result;
     });
+  }
+
+  private async receive(
+    inboxRepository: InboxRepository,
+    command: ProcessWagerTransactionCommand,
+    inbox: InboxContext,
+    at: Date,
+  ): Promise<InboxMessage | "duplicate"> {
+    const message = InboxMessage.receive({
+      messageId: inbox.messageId,
+      consumerName: inbox.consumerName,
+      payloadHash: computeInboxPayloadHash(command),
+      receivedAt: at,
+    });
+
+    const receipt = await inboxRepository.tryReceive(message);
+
+    if (receipt.isNew) {
+      return message;
+    }
+
+    if (!message.matchesPayload(receipt.storedPayloadHash)) {
+      throw new InboxPayloadMismatchError(inbox.consumerName, inbox.messageId);
+    }
+
+    return "duplicate";
+  }
+
+  private async process(
+    repositories: Repositories,
+    command: ProcessWagerTransactionCommand,
+    payloadHash: string,
+    at: Date,
+  ): Promise<ProcessWagerTransactionResult> {
+    const wallet = await repositories.wallets.findByIdForUpdate(command.walletId);
+
+    if (!wallet) {
+      throw new WalletNotFoundError(command.walletId);
+    }
+
+    const known = await this.findKnown(repositories, command, payloadHash);
+
+    if (known) {
+      return this.resultOf(known, wallet, true);
+    }
+
+    const transaction = WagerTransaction.create({
+      id: this.ids.next(),
+      providerId: command.providerId,
+      externalTransactionId: command.externalTransactionId,
+      idempotencyKey: command.idempotencyKey,
+      payloadHash,
+      walletId: command.walletId,
+      playerId: command.playerId,
+      roundId: command.roundId,
+      gameId: command.gameId,
+      kind: command.kind,
+      money: command.money,
+      referenceExternalTransactionId: command.referenceExternalTransactionId,
+      createdAt: at,
+    });
+
+    const settled = await this.settlement.settle(repositories, wallet, transaction, at);
+
+    if (settled.kind === "waiting") {
+      transaction.markPendingReference(new Date(at.getTime() + backoffDelayMs(0)));
+    }
+
+    await this.persist(repositories, {
+      wallet,
+      transaction,
+      entry: settled.kind === "settled" ? settled.entry : undefined,
+      at,
+    });
+
+    return this.resultOf(transaction, wallet, false);
   }
 
   private async findKnown(

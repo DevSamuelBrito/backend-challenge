@@ -2,6 +2,15 @@ import { createHash } from "node:crypto";
 import { canonicalJson } from "../../../shared/application/canonical-json";
 import type { ProcessWagerTransactionCommand } from "./process-wager-transaction.command";
 
+export function computeInboxPayloadHash(command: ProcessWagerTransactionCommand): string {
+  const canonical = canonicalJson({
+    idempotencyKey: command.idempotencyKey,
+    payloadHash: computePayloadHash(command),
+  });
+
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
 export function computePayloadHash(command: ProcessWagerTransactionCommand): string {
   const canonical = canonicalJson({
     providerId: command.providerId,

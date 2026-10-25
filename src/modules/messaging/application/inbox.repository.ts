@@ -7,4 +7,5 @@ export interface InboxReceipt {
 
 export interface InboxRepository {
   tryReceive(message: InboxMessage): Promise<InboxReceipt>;
+  markProcessed(message: InboxMessage): Promise<void>;
 }
