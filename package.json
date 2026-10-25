@@ -22,6 +22,7 @@
     "docker:down": "docker compose down -v",
     "docker:scale": "docker compose up --build --scale app=3",
     "smoke:scale": "bun test/smoke/scale-smoke.ts",
+    "console": "bun console/server.ts",
     "infra:up": "docker compose up -d --wait postgres localstack",
     "infra:down": "docker compose down -v",
     "infra:queues": "docker compose exec localstack awslocal sqs list-queues",

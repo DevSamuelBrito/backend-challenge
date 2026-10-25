@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console de testes</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #fff; --text: #1b2130; --muted: #667085; --line: #e1e4ea;
+    --accent: #2563eb; --accent-soft: #e8efff;
+    --ok: #166534; --ok-bg: #e7f6ec; --warn: #854d0e; --warn-bg: #fdf3d8; --bad: #991b1b; --bad-bg: #fde8e8;
+    --code: #eef0f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101319; --card: #1a1f29; --text: #e8ebf1; --muted: #9aa3b5; --line: #2a3140;
+      --accent: #6b9bff; --accent-soft: #1f2a44;
+      --ok: #86efac; --ok-bg: #16301f; --warn: #fcd34d; --warn-bg: #3a2f10; --bad: #fca5a5; --bad-bg: #3b1818;
+      --code: #11151c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  .topbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 10px 20px;
+    background: var(--card); border-bottom: 1px solid var(--line); font-size: 13px; }
+  .topbar b { font-size: 15px; }
+  .topbar select { width: auto; margin: 0; padding: 4px 6px; }
+  .topbar button { padding: 4px 10px; font-size: 13px; }
+  .layout { display: grid; grid-template-columns: 250px 1fr; gap: 20px; max-width: 1100px; margin: 0 auto; padding: 20px; }
+  @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
+
+  .wallet { grid-column: 1 / -1; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 20px; display: flex; flex-wrap: wrap; gap: 8px 32px; align-items: center; }
+  .wallet .big { font-size: 34px; font-weight: 700; line-height: 1.1; }
+  .wallet .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .wallet .none { color: var(--muted); }
+  .wallet .mono { font-size: 12px; word-break: break-all; }
+
+  nav { display: flex; flex-direction: column; gap: 4px; align-self: start; position: sticky; top: 12px; }
+  nav button { text-align: left; padding: 9px 12px; border: 1px solid transparent; background: transparent;
+    border-radius: 8px; display: flex; gap: 10px; align-items: center; }
+  nav button:hover { background: var(--card); border-color: var(--line); }
+  nav button.active { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+  nav .n { width: 22px; height: 22px; border-radius: 50%; background: var(--code); display: inline-grid;
+    place-items: center; font-size: 12px; flex: none; }
+  nav button.done .n { background: var(--ok-bg); color: var(--ok); }
+  nav hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; width: 100%; }
+
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; display: none; }
+  .step.active { display: block; }
+  .step h2 { margin: 0 0 4px; font-size: 20px; }
+  .step .lead { color: var(--muted); margin: 0 0 16px; }
+  .why { background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; margin: 0 0 18px; font-size: 14px; }
+  .why b { display: block; margin-bottom: 2px; }
+
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  input, select { width: 100%; padding: 8px 10px; margin-top: 3px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--text); font: inherit; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 14px; }
+  button { font: inherit; color: inherit; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--card); cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 4px; }
+  .next { margin-top: 20px; display: flex; justify-content: space-between; }
+
+  .verdict { margin-top: 16px; padding: 12px 14px; border-radius: 8px; font-size: 15px; }
+  .verdict.ok { background: var(--ok-bg); color: var(--ok); }
+  .verdict.warn { background: var(--warn-bg); color: var(--warn); }
+  .verdict.bad { background: var(--bad-bg); color: var(--bad); }
+  .verdict .tag { font-size: 12px; opacity: .8; display: block; margin-top: 2px; }
+  details.tech { margin-top: 8px; font-size: 13px; }
+  details.tech summary { cursor: pointer; color: var(--muted); }
+  pre { background: var(--code); border-radius: 8px; padding: 10px; margin: 6px 0 0; overflow: auto; max-height: 300px;
+    font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .muted { color: var(--muted); }
+  .in { color: var(--ok); font-weight: 600; } .out { color: var(--bad); font-weight: 600; }
+  .hint { font-size: 13px; color: var(--muted); margin: 8px 0; }
+  .log { grid-column: 1 / -1; }
+  .log details { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+  .log summary { cursor: pointer; font-weight: 600; }
+  .log tr { cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <b>Console de testes · Wagering</b>
+  <span id="health">verificando…</span>
+  <label style="margin:0">Servidor
+    <select id="target"></select>
+  </label>
+  <button id="redetect">Detectar de novo</button>
+  <label style="margin:0;display:flex;gap:6px;align-items:center">
+    <input id="spread" type="checkbox" style="width:auto;margin:0"> Espalhar o teste de concorrência entre as instâncias
+  </label>
+</div>
+
+<div class="layout">
+  <div class="wallet" id="walletCard">
+    <div>
+      <div class="label">Saldo da sua carteira</div>
+      <div class="big" id="balance"><span class="none">—</span></div>
+    </div>
+    <div>
+      <div class="label">Jogador</div>
+      <div id="who" class="none">nenhuma carteira ainda</div>
+    </div>
+    <div style="flex:1;min-width:220px">
+      <div class="label">Código da carteira (walletId)</div>
+      <div class="mono" id="walletIdText">—</div>
+    </div>
+    <button id="btnRefresh" title="Buscar o saldo atual no servidor">Atualizar saldo</button>
+  </div>
+
+  <nav id="nav"></nav>
+
+  <div>
+    <section class="step" data-step="1">
+      <h2>1. Criar sua carteira</h2>
+      <p class="lead">O ponto de partida: uma conta de jogador com saldo.</p>
+      <div class="why"><b>O que isso testa</b>Cada jogador tem uma carteira por moeda. O saldo inicial vira o primeiro lançamento do extrato (tipo OPENING).</div>
+      <div class="fields">
+        <label>Nome do jogador<input id="s1-player"></label>
+        <label>Saldo inicial<input id="s1-amount" value="100.00"></label>
+        <label>Moeda<input id="s1-currency" value="BRL"></label>
+      </div>
+      <div class="actions"><button class="primary" id="s1-go">Criar carteira</button></div>
+      <p class="hint">Dica: se você criar de novo com o mesmo nome, o sistema recusa (409). Isso é proposital.</p>
+      <div id="s1-out"></div>
+      <div class="next"><span></span><button data-goto="2">Próximo: fazer uma aposta →</button></div>
+    </section>
+
+    <section class="step" data-step="2">
+      <h2>2. Fazer uma aposta (BET)</h2>
+      <p class="lead">Debita o valor da aposta do seu saldo.</p>
+      <div class="why"><b>O que isso testa</b>O débito acontece e fica registrado. O sistema guarda essa aposta para os próximos passos.</div>
+      <div class="fields">
+        <label>Valor da aposta<input id="s2-amount" value="30.00"></label>
+      </div>
+      <div class="actions"><button class="primary" id="s2-go">Apostar</button></div>
+      <div id="s2-out"></div>
+      <div class="next"><button data-goto="1">← Voltar</button><button data-goto="3">Próximo: repetir a aposta →</button></div>
+    </section>
+
+    <section class="step" data-step="3">
+      <h2>3. Repetir a mesma aposta</h2>
+      <p class="lead">Simula o provedor reenviando o mesmo pedido (isso acontece de verdade em sistemas com entrega repetida).</p>
+      <div class="why"><b>O que isso testa (idempotência)</b>Reenviar o mesmo pedido <u>não pode cobrar de novo</u>. O saldo tem que ficar igual.</div>
+      <div class="actions">
+        <button class="primary" id="s3-same">Repetir exatamente a última aposta</button>
+        <button id="s3-diff">Reusar a mesma chave com outro valor</button>
+      </div>
+      <p class="hint">O segundo botão tenta enganar o sistema: mesma identificação, mas valor diferente. Esperado: recusa (409).</p>
+      <div id="s3-out"></div>
+      <div class="next"><button data-goto="2">← Voltar</button><button data-goto="4">Próximo: aposta maior que o saldo →</button></div>
+    </section>
+
+    <section class="step" data-step="4">
+      <h2>4. Apostar mais do que você tem</h2>
+      <p class="lead">Tenta apostar um valor maior que o saldo.</p>
+      <div class="why"><b>O que isso testa</b>O saldo <u>nunca</u> fica negativo. A tentativa fica registrada como rejeitada, para auditoria.</div>
+      <div class="fields"><label>Valor<input id="s4-amount" value="500.00"></label></div>
+      <div class="actions"><button class="primary" id="s4-go">Tentar apostar</button></div>
+      <div id="s4-out"></div>
+      <div class="next"><button data-goto="3">← Voltar</button><button data-goto="5">Próximo: receber prêmio →</button></div>
+    </section>
+
+    <section class="step" data-step="5">
+      <h2>5. Receber um prêmio (WIN)</h2>
+      <p class="lead">Credita um prêmio ligado à última aposta.</p>
+      <div class="why"><b>O que isso testa</b>Um crédito entra no saldo e fica ligado à aposta de origem.</div>
+      <div class="fields"><label>Valor do prêmio<input id="s5-amount" value="50.00"></label></div>
+      <div class="actions"><button class="primary" id="s5-go">Receber prêmio</button></div>
+      <div id="s5-out"></div>
+      <div class="next"><button data-goto="4">← Voltar</button><button data-goto="6">Próximo: devolver a aposta →</button></div>
+    </section>
+
+    <section class="step" data-step="6">
+      <h2>6. Devolver a aposta (REFUND)</h2>
+      <p class="lead">Desfaz a última aposta e devolve o valor.</p>
+      <div class="why"><b>O que isso testa</b>Uma aposta só pode ser revertida <u>uma vez</u>. Clique duas vezes: o segundo pedido deve ser rejeitado.</div>
+      <div class="actions">
+        <button class="primary" id="s6-go">Devolver a última aposta</button>
+        <button id="s6-again">Tentar devolver de novo (outro pedido)</button>
+      </div>
+      <div id="s6-out"></div>
+      <div class="next"><button data-goto="5">← Voltar</button><button data-goto="7">Próximo: extrato e conferência →</button></div>
+    </section>
+
+    <section class="step" data-step="7">
+      <h2>7. Extrato e conferência</h2>
+      <p class="lead">Mostra todos os lançamentos da carteira e confere se as contas fecham.</p>
+      <div class="why"><b>O que isso testa</b>O extrato (ledger) nunca é apagado nem alterado. A conferência recalcula o saldo somando o extrato e compara com o saldo guardado: tem que bater.</div>
+      <div class="actions">
+        <button class="primary" id="s7-ledger">Ver extrato</button>
+        <button class="primary" id="s7-recon">Conferir as contas</button>
+      </div>
+      <div id="s7-out"></div>
+      <div class="next"><button data-goto="6">← Voltar</button><button data-goto="8">Próximo: teste de concorrência →</button></div>
+    </section>
+
+    <section class="step" data-step="8">
+      <h2>8. Teste de concorrência</h2>
+      <p class="lead">Dispara vários pedidos ao mesmo tempo, na sua carteira ou numa carteira nova só para o teste.</p>
+      <div class="why"><b>O que isso testa</b>Mesmo com muitos pedidos simultâneos, o dinheiro não duplica nem fica negativo.</div>
+      <div class="fields">
+        <label>Quantos pedidos ao mesmo tempo<input id="s8-count" type="number" value="20" min="2" max="200"></label>
+        <label>Valor de cada aposta<input id="s8-amount" value="30.00"></label>
+        <label>Em qual carteira?
+          <select id="s8-wallet">
+            <option value="mine">Na minha carteira (o saldo muda de verdade)</option>
+            <option value="fresh">Numa carteira nova de 100.00 (resultado previsível)</option>
+          </select>
+        </label>
+      </div>
+      <div class="actions">
+        <button class="primary" id="s8-same">A) O MESMO pedido, N vezes</button>
+        <button class="primary" id="s8-diff">B) N pedidos DIFERENTES</button>
+      </div>
+      <p class="hint"><b>A:</b> esperado: só 1 aposta cobrada, e as outras são repetições reconhecidas.<br>
+        <b>B:</b> esperado: são cobradas só as apostas que cabem no saldo (com 100.00 e apostas de 30.00, são 3), as demais são rejeitadas por saldo, e o saldo nunca fica negativo.</p>
+      <div id="s8-out"></div>
+      <div class="next"><button data-goto="7">← Voltar</button><button data-goto="9">Avançado →</button></div>
+    </section>
+
+    <section class="step" data-step="9">
+      <h2>Avançado</h2>
+      <p class="lead">Formulário livre, fila SQS, health e métricas.</p>
+      <div class="fields">
+        <label>Tipo
+          <select id="s9-kind"><option>BET</option><option>WIN</option><option>LOSS</option><option>REFUND</option><option>ROLLBACK</option></select>
+        </label>
+        <label>Valor<input id="s9-amount" value="10.00"></label>
+        <label>Provedor<input id="s9-provider" value="provider-a"></label>
+        <label>ID externo<input id="s9-ext" class="mono"></label>
+        <label>Referência (ID externo de outra transação)<input id="s9-ref" class="mono"></label>
+        <label>Chave de idempotência<input id="s9-key" class="mono"></label>
+      </div>
+      <div class="actions">
+        <button class="primary" id="s9-http">Enviar por HTTP</button>
+        <button id="s9-sqs">Enviar pela fila SQS</button>
+        <button id="s9-new">Novo ID externo</button>
+      </div>
+      <div class="actions">
+        <button id="s9-find">Buscar transação pelo ID externo</button>
+        <button id="s9-metrics">Ver métricas</button>
+        <button id="s9-health">Ver health</button>
+      </div>
+      <p class="hint">Pela fila SQS o processamento é assíncrono: espere alguns segundos e clique em "Atualizar saldo".</p>
+      <div id="s9-out"></div>
+      <div class="next"><button data-goto="8">← Voltar</button><span></span></div>
+    </section>
+  </div>
+
+  <div class="log">
+    <details>
+      <summary>Histórico técnico de todas as chamadas</summary>
+      <table id="logTable"><thead><tr><th>Hora</th><th>Chamada</th><th>Status</th><th>ms</th></tr></thead><tbody></tbody></table>
+      <div id="logDetail"></div>
+    </details>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(key, value); } catch {} },
+};
+const STEPS = ["Criar carteira", "Fazer uma aposta", "Repetir a aposta", "Apostar demais", "Receber prêmio", "Devolver a aposta", "Extrato e conferência", "Concorrência", "Avançado"];
+const REASONS = {
+  INSUFFICIENT_FUNDS: "saldo insuficiente",
+  CURRENCY_MISMATCH: "a moeda da operação é diferente da moeda da carteira",
+  WALLET_PLAYER_MISMATCH: "o jogador informado não é o dono da carteira",
+  REFERENCE_NOT_FOUND: "a transação de referência não existe",
+  REFERENCE_NOT_PROCESSED: "a transação de referência não foi processada",
+  REFERENCE_ALREADY_REVERSED: "essa transação já foi revertida uma vez e não pode ser revertida de novo",
+  REFERENCE_AMOUNT_MISMATCH: "o valor não é igual ao da transação de referência",
+  REFERENCE_KIND_NOT_ALLOWED: "esse tipo de transação não pode apontar para a referência informada",
+  REVERSAL_INSUFFICIENT_FUNDS: "não há saldo para fazer a reversão",
+};
+
+const state = { walletId: "", playerId: "", lastBet: null, requestLog: [], instances: [] };
+const rand = () => Math.random().toString(36).slice(2, 8);
+const esc = (text) => String(text).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+const pretty = (value) => (typeof value === "string" ? value : JSON.stringify(value, null, 2));
+const money = (amount, currency = "BRL") => ({ amount, currency });
+const fmt = (m) => (m ? `${m.amount} ${m.currency}` : "—");
+
+async function call(method, path, { body, headers = {}, target = $("target").value, log = true } = {}) {
+  const started = performance.now();
+  let status = 0;
+  let data;
+  try {
+    const reply = await fetch(`/api${path}`, {
+      method,
+      headers: { "x-target": target, ...(body ? { "content-type": "application/json" } : {}), ...headers },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    status = reply.status;
+    const text = await reply.text();
+    try { data = JSON.parse(text); } catch { data = text; }
+  } catch (error) {
+    data = { error: String(error) };
+  }
+  const entry = { at: new Date().toLocaleTimeString(), label: `${method} ${path.split("?")[0]}`, status, ms: Math.round(performance.now() - started), data };
+  if (log) addLog(entry);
+  return entry;
+}
+
+function addLog(entry) {
+  state.requestLog.unshift(entry);
+  if (state.requestLog.length > 100) state.requestLog.pop();
+  document.querySelector("#logTable tbody").innerHTML = state.requestLog.map((item, i) =>
+    `<tr data-i="${i}"><td>${item.at}</td><td class="mono">${esc(item.label)}</td><td><b>${item.status || "erro"}</b></td><td>${item.ms}</td></tr>`).join("");
+}
+$("logTable").addEventListener("click", (event) => {
+  const row = event.target.closest("tr[data-i]");
+  if (row) $("logDetail").innerHTML = `<pre>${esc(pretty(state.requestLog[Number(row.dataset.i)].data))}</pre>`;
+});
+
+function verdict(entry) {
+  const d = entry.data || {};
+  const balance = d.balance ? fmt(d.balance) : null;
+  const replay = d.idempotentReplay ? " (esta resposta é a repetição de um pedido já feito)" : "";
+  if (!entry.status) return { tone: "bad", text: "Não consegui falar com o servidor.", tag: d.error || "" };
+  if (entry.status === 201) return { tone: "ok", text: `Carteira criada com ${balance}.` };
+  if (entry.status === 200 && d.status === "PROCESSED") {
+    return d.idempotentReplay
+      ? { tone: "warn", text: `O sistema reconheceu o pedido repetido e NÃO processou de novo. O saldo continua ${balance}.`, tag: "Isso é o resultado correto: idempotência." }
+      : { tone: "ok", text: `Processado com sucesso. Saldo agora: ${balance}.` };
+  }
+  if (entry.status === 202) return { tone: "warn", text: "Aguardando a transação de referência chegar. O sistema vai tentar de novo sozinho.", tag: d.status };
+  if (entry.status === 422 && d.status === "REJECTED") {
+    return { tone: "bad", text: `Rejeitado: ${REASONS[d.failureCode] || d.failureCode}. O saldo continua ${balance}.${replay}`, tag: `Isso é esperado quando a regra de negócio não permite. Motivo técnico: ${d.failureCode}` };
+  }
+  if (entry.status === 409 && d.code === "IDEMPOTENCY_CONFLICT") {
+    return { tone: "bad", text: "Recusado: essa chave de idempotência já foi usada com um conteúdo diferente. Nada foi alterado.", tag: "Isso é esperado: o sistema protege contra reuso indevido da chave." };
+  }
+  if (entry.status === 409 && d.code === "WALLET_ALREADY_EXISTS") {
+    return { tone: "bad", text: "Esse jogador já tem uma carteira nessa moeda. Escolha outro nome.", tag: d.code };
+  }
+  return { tone: "bad", text: `${d.code || "Erro"}${d.message ? `: ${d.message}` : ""}`, tag: `HTTP ${entry.status}` };
+}
+
+function show(boxId, entry, extra = "") {
+  const v = verdict(entry);
+  $(boxId).innerHTML = `<div class="verdict ${v.tone}">${esc(v.text)}${v.tag ? `<span class="tag">${esc(v.tag)}</span>` : ""}</div>${extra}
+    <details class="tech"><summary>Ver resposta técnica (HTTP ${entry.status || "erro"}, ${entry.ms} ms)</summary><pre>${esc(pretty(entry.data))}</pre></details>`;
+}
+
+function renderWallet(data) {
+  if (data && data.balance) $("balance").textContent = fmt(data.balance);
+  if (data && data.playerId) { state.playerId = data.playerId; $("who").textContent = data.playerId; $("who").classList.remove("none"); }
+}
+function setWallet(walletId) {
+  state.walletId = walletId;
+  store.set("walletId", walletId);
+  $("walletIdText").textContent = walletId || "—";
+}
+async function refreshBalance() {
+  if (!state.walletId) return null;
+  const entry = await call("GET", `/wallets/${state.walletId}`);
+  if (entry.status === 200) renderWallet(entry.data);
+  return entry;
+}
+function needWallet(boxId) {
+  if (state.walletId) return true;
+  $(boxId).innerHTML = `<div class="verdict warn">Crie uma carteira primeiro (passo 1).</div>`;
+  return false;
+}
+function needBet(boxId) {
+  if (!needWallet(boxId)) return false;
+  if (state.lastBet) return true;
+  $(boxId).innerHTML = `<div class="verdict warn">Faça uma aposta primeiro (passo 2).</div>`;
+  return false;
+}
+
+function txBody(overrides) {
+  return {
+    providerId: "provider-a",
+    playerId: state.playerId,
+    walletId: state.walletId,
+    roundId: "round-1",
+    gameId: "game-1",
+    ...overrides,
+  };
+}
+const keyOf = (body) => `${body.providerId}:${body.externalTransactionId}`;
+function send(body, key = keyOf(body), target) {
+  return call("POST", "/wagering/transactions", { body, headers: { "Idempotency-Key": key }, target });
+}
+async function sendAndShow(boxId, body, key) {
+  const entry = await send(body, key);
+  show(boxId, entry);
+  if (entry.data && entry.data.balance) renderWallet(entry.data); else refreshBalance();
+  return entry;
+}
+
+function goto(step) {
+  document.querySelectorAll(".step").forEach((el) => el.classList.toggle("active", el.dataset.step === String(step)));
+  document.querySelectorAll("#nav button").forEach((el) => el.classList.toggle("active", el.dataset.step === String(step)));
+  store.set("step", String(step));
+  window.scrollTo({ top: 0 });
+}
+function buildNav() {
+  $("nav").innerHTML = STEPS.map((title, i) => `${i === 8 ? "<hr>" : ""}<button data-step="${i + 1}"><span class="n">${i === 8 ? "+" : i + 1}</span>${title}</button>`).join("");
+  $("nav").addEventListener("click", (event) => { const b = event.target.closest("button[data-step]"); if (b) goto(b.dataset.step); });
+  document.addEventListener("click", (event) => { const b = event.target.closest("button[data-goto]"); if (b) goto(b.dataset.goto); });
+}
+function markDone(step) { document.querySelector(`#nav button[data-step="${step}"]`).classList.add("done"); }
+
+async function detectInstances() {
+  $("health").textContent = "procurando o servidor…";
+  const reply = await fetch("/instances").then((r) => r.json());
+  state.instances = reply.ports;
+  const previous = $("target").value;
+  $("target").innerHTML = reply.ports.length
+    ? reply.ports.map((port) => `<option value="http://localhost:${port}">porta ${port}</option>`).join("")
+    : `<option value="http://localhost:3000">porta 3000 (nada respondendo)</option>`;
+  if (reply.ports.map((p) => `http://localhost:${p}`).includes(previous)) $("target").value = previous;
+  const firstError = Object.entries(reply.errors)[0];
+  $("health").innerHTML = reply.ports.length
+    ? `<span style="color:var(--ok)">● servidor no ar (${reply.ports.length} instância${reply.ports.length > 1 ? "s" : ""})</span>`
+    : `<span style="color:var(--bad)">● nenhum servidor respondendo em 3000-3009</span> <span class="muted">${firstError ? esc(`porta ${firstError[0]}: ${firstError[1]}`).slice(0, 130) : ""}</span>`;
+}
+
+$("redetect").onclick = detectInstances;
+$("btnRefresh").onclick = refreshBalance;
+
+$("s1-go").onclick = async () => {
+  const playerId = $("s1-player").value.trim();
+  const entry = await call("POST", "/wallets", { body: { playerId, initialBalance: money($("s1-amount").value, $("s1-currency").value) } });
+  show("s1-out", entry);
+  if (entry.status === 201) {
+    setWallet(entry.data.id);
+    renderWallet(entry.data);
+    state.lastBet = null;
+    markDone(1);
+    $("s1-player").value = `jogador-${rand()}`;
+  }
+};
+
+$("s2-go").onclick = async () => {
+  if (!needWallet("s2-out")) return;
+  const body = txBody({ externalTransactionId: `bet-${rand()}`, kind: "BET", money: money($("s2-amount").value) });
+  const entry = await sendAndShow("s2-out", body);
+  if (entry.status === 200) { state.lastBet = { body, key: keyOf(body) }; markDone(2); }
+};
+
+$("s3-same").onclick = async () => {
+  if (!needBet("s3-out")) return;
+  await sendAndShow("s3-out", state.lastBet.body, state.lastBet.key);
+  markDone(3);
+};
+$("s3-diff").onclick = async () => {
+  if (!needBet("s3-out")) return;
+  const changed = { ...state.lastBet.body, money: money("31.00") };
+  await sendAndShow("s3-out", changed, state.lastBet.key);
+  markDone(3);
+};
+
+$("s4-go").onclick = async () => {
+  if (!needWallet("s4-out")) return;
+  await sendAndShow("s4-out", txBody({ externalTransactionId: `big-${rand()}`, kind: "BET", money: money($("s4-amount").value) }));
+  markDone(4);
+};
+
+$("s5-go").onclick = async () => {
+  if (!needBet("s5-out")) return;
+  const entry = await sendAndShow("s5-out", txBody({
+    externalTransactionId: `win-${rand()}`, kind: "WIN", money: money($("s5-amount").value),
+    referenceExternalTransactionId: state.lastBet.body.externalTransactionId,
+  }));
+  if (entry.status === 200) markDone(5);
+};
+
+async function refund(boxId) {
+  if (!needBet(boxId)) return;
+  const entry = await sendAndShow(boxId, txBody({
+    externalTransactionId: `refund-${rand()}`, kind: "REFUND", money: state.lastBet.body.money,
+    referenceExternalTransactionId: state.lastBet.body.externalTransactionId,
+  }));
+  if (entry.status === 200 || entry.status === 422) markDone(6);
+}
+$("s6-go").onclick = () => refund("s6-out");
+$("s6-again").onclick = () => refund("s6-out");
+
+$("s7-ledger").onclick = async () => {
+  if (!needWallet("s7-out")) return;
+  const entry = await call("GET", `/wallets/${state.walletId}/ledger?limit=100`);
+  if (entry.status !== 200) return show("s7-out", entry);
+  const rows = entry.data.items.map((item) =>
+    `<tr><td>${item.walletVersion}</td><td class="${item.direction === "CREDIT" ? "in" : "out"}">${item.direction === "CREDIT" ? "entrou" : "saiu"}</td><td class="mono">${item.money.amount}</td><td class="mono">${item.balanceBefore.amount} → ${item.balanceAfter.amount}</td></tr>`).join("");
+  $("s7-out").innerHTML = `<table><thead><tr><th>#</th><th>Movimento</th><th>Valor</th><th>Saldo (antes → depois)</th></tr></thead><tbody>${rows || `<tr><td colspan="4" class="muted">Extrato vazio</td></tr>`}</tbody></table>
+    <details class="tech"><summary>Ver resposta técnica</summary><pre>${esc(pretty(entry.data))}</pre></details>`;
+  markDone(7);
+};
+$("s7-recon").onclick = async () => {
+  if (!needWallet("s7-out")) return;
+  const entry = await call("POST", `/wallets/${state.walletId}/reconciliation`);
+  const d = entry.data || {};
+  if (entry.status !== 200) return show("s7-out", entry);
+  const text = d.consistent
+    ? `As contas fecham. O saldo guardado (${fmt(d.storedBalance)}) é igual ao saldo recalculado pelo extrato (${fmt(d.calculatedBalance)}), conferidos ${d.checkedEntries} lançamentos.`
+    : `ATENÇÃO: as contas NÃO fecham. Guardado ${fmt(d.storedBalance)}, recalculado ${fmt(d.calculatedBalance)}.`;
+  $("s7-out").innerHTML = `<div class="verdict ${d.consistent ? "ok" : "bad"}">${esc(text)}</div>
+    <details class="tech"><summary>Ver resposta técnica</summary><pre>${esc(pretty(d))}</pre></details>`;
+  markDone(7);
+};
+
+async function concurrency(button, mode) {
+  button.disabled = true;
+  $("s8-out").innerHTML = `<div class="verdict warn">Disparando…</div>`;
+  const count = Math.min(Math.max(Number($("s8-count").value) || 2, 2), 200);
+  const amount = $("s8-amount").value;
+  const useMine = $("s8-wallet").value === "mine";
+  let walletId = state.walletId;
+  let playerId = state.playerId;
+  if (useMine && !walletId) {
+    $("s8-out").innerHTML = `<div class="verdict warn">Crie uma carteira primeiro (passo 1) ou escolha “carteira nova”.</div>`;
+    button.disabled = false;
+    return;
+  }
+  if (!useMine) {
+    const wallet = await call("POST", "/wallets", { body: { playerId: `conc-${rand()}`, initialBalance: money("100.00") }, log: false });
+    if (wallet.status !== 201) { show("s8-out", wallet); button.disabled = false; return; }
+    walletId = wallet.data.id;
+    playerId = wallet.data.playerId;
+  }
+  const before = await call("GET", `/wallets/${walletId}`, { log: false });
+  const targets = $("spread").checked && state.instances.length
+    ? state.instances.map((p) => `http://localhost:${p}`) : [$("target").value];
+  const run = rand();
+  const started = performance.now();
+  const entries = await Promise.all(Array.from({ length: count }, (_, i) => {
+    const ext = mode === "same" ? `same-${run}` : `race-${run}-${i}`;
+    const body = { providerId: "provider-a", playerId, walletId, roundId: "round-1", gameId: "game-1", externalTransactionId: ext, kind: "BET", money: money(amount) };
+    return call("POST", "/wagering/transactions", { body, headers: { "Idempotency-Key": `provider-a:${ext}` }, target: targets[i % targets.length], log: false });
+  }));
+  const elapsed = Math.round(performance.now() - started);
+  const groups = {};
+  for (const e of entries) {
+    const d = e.data || {};
+    const label = d.idempotentReplay ? "repetição reconhecida (nada cobrado)"
+      : d.status === "PROCESSED" ? "aposta processada (cobrada)"
+      : d.status === "REJECTED" ? `rejeitada (${REASONS[d.failureCode] || d.failureCode})`
+      : `erro HTTP ${e.status}`;
+    groups[label] = (groups[label] || 0) + 1;
+  }
+  const recon = await call("POST", `/wallets/${walletId}/reconciliation`, { log: false });
+  const final = await call("GET", `/wallets/${walletId}`, { log: false });
+  const consistent = recon.data && recon.data.consistent;
+  const rows = Object.entries(groups).map(([label, n]) => `<tr><td>${esc(label)}</td><td><b>${n}</b></td></tr>`).join("");
+  $("s8-out").innerHTML = `<table><thead><tr><th>Resultado dos ${count} pedidos</th><th>Qtd</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="verdict ${consistent ? "ok" : "bad"}">${useMine ? "Sua carteira" : "Carteira de teste"}: saldo <b>${fmt(before.data && before.data.balance)}</b> → <b>${fmt(final.data && final.data.balance)}</b>.
+      ${consistent ? "As contas fecham (conferência do extrato OK)." : "ATENÇÃO: as contas NÃO fecham."}
+      <span class="tag">${count} pedidos em ${elapsed} ms, em ${targets.length} instância(s).</span></div>`;
+  if (useMine) renderWallet(final.data);
+  markDone(8);
+  button.disabled = false;
+}
+$("s8-same").onclick = (e) => concurrency(e.currentTarget, "same");
+$("s8-diff").onclick = (e) => concurrency(e.currentTarget, "diff");
+
+function newAdvancedId() { $("s9-ext").value = `tx-${rand()}`; $("s9-key").value = `${$("s9-provider").value}:${$("s9-ext").value}`; }
+$("s9-new").onclick = newAdvancedId;
+function advancedBody() {
+  const reference = $("s9-ref").value.trim();
+  return txBody({
+    providerId: $("s9-provider").value, externalTransactionId: $("s9-ext").value, kind: $("s9-kind").value,
+    money: money($("s9-amount").value), ...(reference ? { referenceExternalTransactionId: reference } : {}),
+  });
+}
+$("s9-http").onclick = async () => {
+  if (!needWallet("s9-out")) return;
+  await sendAndShow("s9-out", advancedBody(), $("s9-key").value);
+};
+$("s9-sqs").onclick = async () => {
+  if (!needWallet("s9-out")) return;
+  const started = performance.now();
+  const reply = await fetch("/sqs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...advancedBody(), idempotencyKey: $("s9-key").value }) });
+  const data = await reply.json();
+  const entry = { at: new Date().toLocaleTimeString(), label: "SQS wager-transactions.fifo", status: reply.status, ms: Math.round(performance.now() - started), data };
+  addLog(entry);
+  $("s9-out").innerHTML = `<div class="verdict ${data.enqueued ? "ok" : "bad"}">${data.enqueued ? "Mensagem enfileirada. O servidor processa em segundos: clique em “Atualizar saldo”." : "Não consegui enviar para a fila."}</div>
+    <details class="tech"><summary>Ver resposta técnica</summary><pre>${esc(pretty(data))}</pre></details>`;
+};
+$("s9-find").onclick = async () => {
+  const entry = await call("GET", `/providers/${encodeURIComponent($("s9-provider").value)}/wagering/transactions/${encodeURIComponent($("s9-ext").value)}`);
+  $("s9-out").innerHTML = `<details class="tech" open><summary>HTTP ${entry.status}</summary><pre>${esc(pretty(entry.data))}</pre></details>`;
+};
+$("s9-metrics").onclick = async () => {
+  const entry = await call("GET", "/metrics");
+  const lines = String(entry.data).split("\n").filter((line) => line.startsWith("wager_"));
+  $("s9-out").innerHTML = `<details class="tech" open><summary>Métricas wager_*</summary><pre>${esc(lines.join("\n") || "(sem métricas)")}</pre></details>`;
+};
+$("s9-health").onclick = async () => {
+  const entry = await call("GET", "/health/ready");
+  $("s9-out").innerHTML = `<details class="tech" open><summary>HTTP ${entry.status}</summary><pre>${esc(pretty(entry.data))}</pre></details>`;
+};
+$("s9-provider").addEventListener("input", () => { $("s9-key").value = `${$("s9-provider").value}:${$("s9-ext").value}`; });
+
+(async function init() {
+  buildNav();
+  $("s1-player").value = `jogador-${rand()}`;
+  newAdvancedId();
+  await detectInstances();
+  const saved = store.get("walletId", "");
+  if (saved) {
+    setWallet(saved);
+    const entry = await refreshBalance();
+    if (!entry || entry.status !== 200) { setWallet(""); $("balance").innerHTML = `<span class="none">—</span>`; }
+  }
+  goto(state.walletId ? store.get("step", "1") : "1");
+})();
+</script>
+</body>
+</html>
