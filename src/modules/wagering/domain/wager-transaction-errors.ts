@@ -1,4 +1,4 @@
-import { ConflictError, DomainError } from "../../../shared/domain/domain-error";
+import { ConflictError, DomainError, NotFoundError } from "../../../shared/domain/domain-error";
 
 export class IdempotencyConflictError extends ConflictError {
   readonly code = "IDEMPOTENCY_CONFLICT";
@@ -36,5 +36,13 @@ export class InvalidWagerTransactionError extends DomainError {
     message: string,
   ) {
     super(message);
+  }
+}
+
+export class WagerTransactionNotFoundError extends NotFoundError {
+  readonly code = "TRANSACTION_NOT_FOUND";
+
+  constructor(description: string) {
+    super(`Transação não encontrada: ${description}`);
   }
 }

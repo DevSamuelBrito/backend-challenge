@@ -83,7 +83,7 @@ export class QueueConsumer {
       try {
         messages = await this.queue.receive({
           maxMessages: this.settings.batchSize,
-          waitSeconds: 20,
+          waitSeconds: this.settings.waitSeconds,
           visibilityTimeoutSeconds: this.settings.visibilityTimeoutSeconds,
         });
       } catch (error) {

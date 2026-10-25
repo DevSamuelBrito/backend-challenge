@@ -539,10 +539,10 @@ describe("persistência: round-trip de cada agregado no Postgres real", () => {
       );
     });
 
-    test("o repositório do ledger só sabe inserir: não expõe update nem delete", () => {
+    test("o repositório do ledger só insere e lê: não expõe update nem delete", () => {
       const methods = Object.getOwnPropertyNames(MikroOrmLedgerRepository.prototype);
 
-      expect(methods.sort()).toEqual(["append", "constructor"]);
+      expect(methods.sort()).toEqual(["append", "constructor", "findPage", "summarize"]);
     });
   });
 

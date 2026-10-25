@@ -5,6 +5,7 @@ import { PersistenceModule } from "../../shared/infrastructure/database/persiste
 import { SystemModule } from "../../shared/infrastructure/system/system.module";
 import { AuthModule } from "../auth/auth.module";
 import { MessagingModule } from "../messaging/messaging.module";
+import { GetWagerTransaction } from "./application/get-wager-transaction";
 import {
   PENDING_REFERENCE_SETTINGS,
   PendingReferenceWorker,
@@ -12,15 +13,17 @@ import {
 import { ProcessWagerTransaction } from "./application/process-wager-transaction";
 import { WagerSettlement } from "./application/wager-settlement";
 import { WagerTransactionController } from "./http/wager-transaction.controller";
+import { WagerTransactionQueryController } from "./http/wager-transaction-query.controller";
 import { PendingReferenceScheduler } from "./infrastructure/pending-reference.scheduler";
 import { WagerTransactionConsumer } from "./messaging/wager-transaction.consumer";
 import { WagerTransactionMessageHandler } from "./messaging/wager-transaction-message.handler";
 
 @Module({
   imports: [PersistenceModule, SystemModule, AuthModule, MessagingModule],
-  controllers: [WagerTransactionController],
+  controllers: [WagerTransactionController, WagerTransactionQueryController],
   providers: [
     ProcessWagerTransaction,
+    GetWagerTransaction,
     WagerTransactionMessageHandler,
     WagerTransactionConsumer,
     WagerSettlement,

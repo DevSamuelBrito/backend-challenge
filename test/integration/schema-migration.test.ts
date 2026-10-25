@@ -60,7 +60,7 @@ describe("migrations: up, down e up de novo no Postgres real", () => {
 
   test("o banco começa vazio e a migration está pendente", async () => {
     expect(await tables()).toEqual([]);
-    expect(await orm.migrator.getPending()).toHaveLength(1);
+    expect(await orm.migrator.getPending()).toHaveLength(2);
   });
 
   test("up cria as 5 tabelas, as 2 funções e os 5 triggers", async () => {
@@ -79,7 +79,7 @@ describe("migrations: up, down e up de novo no Postgres real", () => {
     expect(await functions()).toEqual([]);
     expect(await triggers()).toEqual([]);
     expect(await leftovers()).toEqual([]);
-    expect(await orm.migrator.getPending()).toHaveLength(1);
+    expect(await orm.migrator.getPending()).toHaveLength(2);
   });
 
   test("up de novo recria o mesmo schema e o banco volta a funcionar", async () => {

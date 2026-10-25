@@ -72,3 +72,7 @@ Falhas eliminatórias adicionais (§14): saldo negativo por race, idempotência 
 - Domínio sem dependência de ORM ou decorators do NestJS; construtor `private` + factories estáticas (`create`, `from`, `rehydrate`).
 - Scripts via `bun run`; lint/format com Biome (`bun run lint`, `bun run format`); tipos com `bun run typecheck`.
 - Infra local: `bun run infra:up` / `bun run infra:down` (Postgres + LocalStack, filas criadas automaticamente).
+
+Teste de mutação: no máximo 10 defeitos por etapa, só os mais críticos, rodando apenas o arquivo de teste relevante (nunca a suíte inteira a cada defeito). Se passar de 15 minutos, pare.
+
+Nunca rode teste de mutação em segundo plano. Sempre em primeiro plano, e confirme ao final que nenhum processo ficou rodando e que o src/ está idêntico ao original (git diff).

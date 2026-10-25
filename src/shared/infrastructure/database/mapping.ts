@@ -13,6 +13,12 @@ export function moneyFromColumn(amount: string, currency: string): Money {
   return Money.from({ amount, currency });
 }
 
+export function signedMoneyFromColumn(amount: string, currency: string): Money {
+  return amount.startsWith("-")
+    ? moneyFromColumn(amount.slice(1), currency).negate()
+    : moneyFromColumn(amount, currency);
+}
+
 export function moneyToColumn(money: Money): string {
   return money.toJSON().amount;
 }

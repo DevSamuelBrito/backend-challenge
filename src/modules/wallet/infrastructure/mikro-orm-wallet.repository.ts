@@ -42,6 +42,10 @@ export class MikroOrmWalletRepository implements WalletRepository {
     return this.load({ id });
   }
 
+  async findByIdForShare(id: string): Promise<Wallet | undefined> {
+    return this.load({ id }, LockMode.PESSIMISTIC_READ);
+  }
+
   async findByIdForUpdate(id: string): Promise<Wallet | undefined> {
     return this.load({ id }, LockMode.PESSIMISTIC_WRITE);
   }
@@ -52,7 +56,7 @@ export class MikroOrmWalletRepository implements WalletRepository {
 
   private async load(
     where: Partial<WalletRecord>,
-    lockMode?: LockMode.PESSIMISTIC_WRITE,
+    lockMode?: LockMode.PESSIMISTIC_WRITE | LockMode.PESSIMISTIC_READ,
   ): Promise<Wallet | undefined> {
     const record = await this.em.findOne(WalletSchema, where, {
       disableIdentityMap: true,
