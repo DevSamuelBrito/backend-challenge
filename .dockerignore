@@ -1,0 +1,31 @@
+# dependências e artefatos: a imagem instala as suas
+node_modules
+dist
+coverage
+*.log
+
+# segredos e configuração local da máquina
+.env
+.env.*
+
+# controle de versão e editor
+.git
+.gitattributes
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+# documentação, anotações de estudo e diagramas locais
+docs
+*.md
+fluxo.html
+
+# testes, infra de desenvolvimento e ferramentas que a imagem não usa
+test
+localstack
+docker-compose*.yml
+Dockerfile
+.dockerignore
+biome.json
+bunfig.toml

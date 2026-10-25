@@ -1,5 +1,14 @@
 name: wagering
 
+x-app-environment: &app-environment
+  PORT: "3000"
+  DATABASE_URL: postgres://${POSTGRES_USER:-wagering}:${POSTGRES_PASSWORD:-wagering}@postgres:5432/${POSTGRES_DB:-wagering}
+  SQS_ENDPOINT: http://localstack:4566
+
+x-app-env-file: &app-env-file
+  - path: .env
+    required: false
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -12,7 +21,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wagering} -d ${POSTGRES_DB:-wagering}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-wagering} -d ${POSTGRES_DB:-wagering}"]
       interval: 3s
       timeout: 3s
       retries: 20
@@ -31,6 +40,45 @@ services:
       interval: 3s
       timeout: 5s
       retries: 30
+
+  migrate:
+    build: .
+    image: wagering-app
+    command: ["bun", "run", "migration:up"]
+    env_file: *app-env-file
+    environment: *app-environment
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    build: .
+    image: wagering-app
+    env_file: *app-env-file
+    environment: *app-environment
+    ports:
+      - "${APP_PORTS:-3000-3009}:3000"
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 45s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://127.0.0.1:3000/health/ready').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
 volumes:
   postgres-data:
