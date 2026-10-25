@@ -21,4 +21,5 @@ export interface MessageQueue {
   delete(message: QueueMessage): Promise<void>;
   changeVisibility(message: QueueMessage, seconds: number): Promise<void>;
   sendToDeadLetter(message: QueueMessage, reason: string): Promise<void>;
+  deadLetterDepth(): Promise<number>;
 }

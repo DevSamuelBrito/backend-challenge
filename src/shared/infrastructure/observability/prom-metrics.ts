@@ -58,6 +58,12 @@ export class PromMetrics implements Metrics {
     registers: [this.registry],
   });
 
+  private readonly dlqSize = new Gauge({
+    name: "wager_dlq_messages",
+    help: "Mensagens na DLQ da fila de entrada (ApproximateNumberOfMessages), atualizado pelo papel consumer",
+    registers: [this.registry],
+  });
+
   private readonly processing = new Histogram({
     name: "wager_processing_duration_seconds",
     help: "Latência do processamento de uma transação, por origem",
@@ -104,6 +110,10 @@ export class PromMetrics implements Metrics {
 
   outboxLag(seconds: number): void {
     this.lag.set(seconds);
+  }
+
+  deadLetterQueueSize(messages: number): void {
+    this.dlqSize.set(messages);
   }
 
   processingDuration(source: ProcessingSource, seconds: number): void {

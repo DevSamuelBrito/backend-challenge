@@ -72,6 +72,10 @@ class FakeQueue implements MessageQueue {
       throw new Error("dlq falhou");
     }
   }
+
+  async deadLetterDepth(): Promise<number> {
+    return 0;
+  }
 }
 
 const settings = (overrides: Partial<QueueConsumerSettings> = {}): QueueConsumerSettings => ({

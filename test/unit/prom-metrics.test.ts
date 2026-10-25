@@ -18,6 +18,7 @@ describe("PromMetrics", () => {
 
     expect(text).toContain("# TYPE wager_transactions_total counter");
     expect(text).toContain("# TYPE wager_outbox_lag_seconds gauge");
+    expect(text).toContain("# TYPE wager_dlq_messages gauge");
     expect(text).toContain("# TYPE wager_wallet_lock_wait_seconds histogram");
     expect(text).toContain("# TYPE wager_processing_duration_seconds histogram");
   });
@@ -63,6 +64,16 @@ describe("PromMetrics", () => {
 
     metrics.outboxLag(0);
     expect(metricValue(await metrics.render(), "wager_outbox_lag_seconds")).toBe(0);
+  });
+
+  test("o gauge da DLQ guarda o último valor lido", async () => {
+    const metrics = build();
+
+    metrics.deadLetterQueueSize(5);
+    expect(metricValue(await metrics.render(), "wager_dlq_messages")).toBe(5);
+
+    metrics.deadLetterQueueSize(0);
+    expect(metricValue(await metrics.render(), "wager_dlq_messages")).toBe(0);
   });
 
   test("os histogramas contam e somam as observações, por origem", async () => {

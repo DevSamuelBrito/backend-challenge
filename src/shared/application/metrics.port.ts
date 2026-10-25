@@ -12,6 +12,7 @@ export interface Metrics {
   lockTimeout(): void;
   walletLockWaited(seconds: number): void;
   outboxLag(seconds: number): void;
+  deadLetterQueueSize(messages: number): void;
   processingDuration(source: ProcessingSource, seconds: number): void;
   reconciliationMismatch(): void;
 }
@@ -24,6 +25,7 @@ export const NO_OP_METRICS: Metrics = {
   lockTimeout: () => undefined,
   walletLockWaited: () => undefined,
   outboxLag: () => undefined,
+  deadLetterQueueSize: () => undefined,
   processingDuration: () => undefined,
   reconciliationMismatch: () => undefined,
 };

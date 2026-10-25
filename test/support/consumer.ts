@@ -332,6 +332,10 @@ export class RecordingQueue implements MessageQueue {
     this.deadLettered.push(message.sqsMessageId);
   }
 
+  deadLetterDepth(): Promise<number> {
+    return this.delegate.deadLetterDepth();
+  }
+
   receivesOf(body: (parsed: { messageId?: string }) => boolean): number {
     return this.received.filter((entry) => body(safeParse(entry.body) as { messageId?: string }))
       .length;

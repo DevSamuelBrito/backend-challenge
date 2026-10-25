@@ -3,9 +3,11 @@ import { APP_CONFIG } from "../../config/config.module";
 import type { AppConfig } from "../../config/env";
 import { PersistenceModule } from "../../shared/infrastructure/database/persistence.module";
 import { SystemModule } from "../../shared/infrastructure/system/system.module";
+import { DeadLetterMonitor } from "./application/dead-letter-monitor";
 import { EVENT_PUBLISHER } from "./application/event-publisher.port";
 import { MESSAGE_QUEUE } from "./application/message-queue.port";
 import { OUTBOX_SETTINGS, OutboxPublisher } from "./application/outbox-publisher";
+import { DeadLetterMonitorScheduler } from "./infrastructure/dead-letter-monitor.scheduler";
 import { OutboxScheduler } from "./infrastructure/outbox.scheduler";
 import { SqsEventPublisher } from "./infrastructure/sqs-event-publisher";
 import { SqsMessageQueue } from "./infrastructure/sqs-message-queue";
@@ -15,6 +17,8 @@ import { SqsMessageQueue } from "./infrastructure/sqs-message-queue";
   providers: [
     OutboxPublisher,
     OutboxScheduler,
+    DeadLetterMonitor,
+    DeadLetterMonitorScheduler,
     { provide: EVENT_PUBLISHER, useClass: SqsEventPublisher },
     { provide: MESSAGE_QUEUE, useClass: SqsMessageQueue },
     {

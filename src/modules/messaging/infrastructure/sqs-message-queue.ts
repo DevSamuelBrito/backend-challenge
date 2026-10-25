@@ -1,6 +1,7 @@
 import {
   ChangeMessageVisibilityCommand,
   DeleteMessageCommand,
+  GetQueueAttributesCommand,
   GetQueueUrlCommand,
   ReceiveMessageCommand,
   SendMessageCommand,
@@ -101,6 +102,20 @@ export class SqsMessageQueue implements MessageQueue {
       }),
       { abortSignal: this.shortTimeout() },
     );
+  }
+
+  async deadLetterDepth(): Promise<number> {
+    const queueUrl = await this.urlOf(this.config.sqs.transactionsDlq);
+
+    const { Attributes } = await this.client.send(
+      new GetQueueAttributesCommand({
+        QueueUrl: queueUrl,
+        AttributeNames: ["ApproximateNumberOfMessages"],
+      }),
+      { abortSignal: this.shortTimeout() },
+    );
+
+    return Number(Attributes?.ApproximateNumberOfMessages ?? 0);
   }
 
   private shortTimeout(): AbortSignal {

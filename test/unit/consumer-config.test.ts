@@ -12,6 +12,7 @@ describe("config: consumidor da fila de entrada", () => {
       backoffMaxSeconds: 60,
       sdkTimeoutMs: 5000,
       shutdownTimeoutMs: 30_000,
+      dlqMonitorIntervalMs: 30_000,
     });
   });
 
@@ -25,6 +26,7 @@ describe("config: consumidor da fila de entrada", () => {
       CONSUMER_BACKOFF_MAX_SECONDS: "30",
       CONSUMER_SDK_TIMEOUT_MS: "700",
       CONSUMER_SHUTDOWN_TIMEOUT_MS: "1500",
+      DLQ_MONITOR_INTERVAL_MS: "2500",
     });
 
     expect(config.consumer).toEqual({
@@ -36,6 +38,7 @@ describe("config: consumidor da fila de entrada", () => {
       backoffMaxSeconds: 30,
       sdkTimeoutMs: 700,
       shutdownTimeoutMs: 1500,
+      dlqMonitorIntervalMs: 2500,
     });
   });
 
@@ -52,6 +55,7 @@ describe("config: consumidor da fila de entrada", () => {
     ["CONSUMER_BACKOFF_MAX_SECONDS", "abc"],
     ["CONSUMER_SDK_TIMEOUT_MS", "0"],
     ["CONSUMER_SHUTDOWN_TIMEOUT_MS", "-5"],
+    ["DLQ_MONITOR_INTERVAL_MS", "0"],
   ])("rejeita %s inválido (%s)", (name, value) => {
     expect(() => loadConfig({ [name]: value })).toThrow(`${name} inválido`);
   });

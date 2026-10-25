@@ -1,3 +1,5 @@
+import { FAULT_POINTS, type FaultPoint } from "../shared/application/fault-injector.port";
+
 export type AppRole = "api" | "consumer" | "outbox" | "pending-worker";
 
 const ALL_ROLES: readonly AppRole[] = ["api", "consumer", "outbox", "pending-worker"];
@@ -35,6 +37,7 @@ export interface ConsumerConfig {
   backoffMaxSeconds: number;
   sdkTimeoutMs: number;
   shutdownTimeoutMs: number;
+  dlqMonitorIntervalMs: number;
 }
 
 export type LogLevel = "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
@@ -54,6 +57,10 @@ export interface ObservabilityConfig {
   defaultMetrics: boolean;
 }
 
+export interface FaultInjectionConfig {
+  point: FaultPoint | undefined;
+}
+
 export interface AppConfig {
   port: number;
   roles: readonly AppRole[];
@@ -63,6 +70,7 @@ export interface AppConfig {
   outbox: OutboxConfig;
   consumer: ConsumerConfig;
   observability: ObservabilityConfig;
+  faultInjection: FaultInjectionConfig;
   sqs: SqsConfig;
 }
 
@@ -101,6 +109,29 @@ function loadObservabilityConfig(env: Record<string, string | undefined>): Obser
   return { logLevel: logLevel as LogLevel, defaultMetrics: defaultMetrics === "true" };
 }
 
+function loadFaultInjectionConfig(env: Record<string, string | undefined>): FaultInjectionConfig {
+  const enabled = env.ENABLE_FAULT_INJECTION;
+  const point = env.FAULT_POINT;
+
+  if (enabled !== undefined && enabled !== "true" && enabled !== "false") {
+    throw new Error(`ENABLE_FAULT_INJECTION inválido: ${enabled}`);
+  }
+
+  if (enabled !== "true") {
+    if (point !== undefined && point !== "") {
+      throw new Error("FAULT_POINT exige ENABLE_FAULT_INJECTION=true");
+    }
+
+    return { point: undefined };
+  }
+
+  if (!FAULT_POINTS.includes(point as FaultPoint)) {
+    throw new Error(`FAULT_POINT inválido: ${point}. Pontos: ${FAULT_POINTS.join(", ")}`);
+  }
+
+  return { point: point as FaultPoint };
+}
+
 function loadConsumerConfig(env: Record<string, string | undefined>): ConsumerConfig {
   const backoffBaseSeconds = positiveInteger(
     env,
@@ -135,6 +166,7 @@ function loadConsumerConfig(env: Record<string, string | undefined>): ConsumerCo
     backoffMaxSeconds,
     sdkTimeoutMs: positiveInteger(env, "CONSUMER_SDK_TIMEOUT_MS", 5000),
     shutdownTimeoutMs: positiveInteger(env, "CONSUMER_SHUTDOWN_TIMEOUT_MS", 30_000),
+    dlqMonitorIntervalMs: positiveInteger(env, "DLQ_MONITOR_INTERVAL_MS", 30_000),
   };
 }
 
@@ -203,6 +235,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     },
     consumer: loadConsumerConfig(env),
     observability: loadObservabilityConfig(env),
+    faultInjection: loadFaultInjectionConfig(env),
     sqs,
   };
 }

@@ -81,6 +81,7 @@ export const ALL_METRIC_NAMES = [
   "wager_lock_timeouts_total",
   "wager_wallet_lock_wait_seconds",
   "wager_outbox_lag_seconds",
+  "wager_dlq_messages",
   "wager_processing_duration_seconds",
   "wager_reconciliation_mismatches_total",
 ] as const;
