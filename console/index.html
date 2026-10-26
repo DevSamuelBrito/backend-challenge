@@ -790,12 +790,39 @@ function advancedBody() {
     money: money($("s9-amount").value), ...(reference ? { referenceExternalTransactionId: reference } : {}),
   });
 }
+function advancedProblem() {
+  const kind = $("s9-kind").value;
+  const reference = $("s9-ref").value.trim();
+
+  if (!$("s9-provider").value.trim() || !$("s9-ext").value.trim()) return "Preencha o provedor e o ID externo.";
+  if (kind === "BET" && reference) return "BET não aceita referência: apague o campo “Referência” (ela é só para WIN, LOSS, REFUND e ROLLBACK).";
+  if ((kind === "REFUND" || kind === "ROLLBACK") && !reference) return `${kind} exige a referência: informe o ID externo da transação que será revertida.`;
+  return null;
+}
+function rejectAdvanced(problem) {
+  $("s9-out").innerHTML = `<div class="verdict warn">Não enviei: ${esc(problem)}<span class="tag">O sistema recusaria esse pedido (HTTP 400 ou, pela fila, DLQ).</span></div>`;
+}
+async function dlqCount() {
+  try {
+    const reply = await fetch("/dlq");
+    const body = await reply.json();
+    return typeof body.messages === "number" ? body.messages : null;
+  } catch {
+    return null;
+  }
+}
+
 $("s9-http").onclick = async () => {
   if (!needWallet("s9-out")) return;
+  const problem = advancedProblem();
+  if (problem) return rejectAdvanced(problem);
   await sendAndShow("s9-out", advancedBody(), $("s9-key").value);
 };
 $("s9-sqs").onclick = async () => {
   if (!needWallet("s9-out")) return;
+  const problem = advancedProblem();
+  if (problem) return rejectAdvanced(problem);
+  const dlqBefore = await dlqCount();
   const provider = encodeURIComponent($("s9-provider").value);
   const external = encodeURIComponent($("s9-ext").value);
   const lookup = () => call("GET", `/providers/${provider}/wagering/transactions/${external}`, { log: false });
@@ -819,9 +846,20 @@ $("s9-sqs").onclick = async () => {
 
   $("s9-out").innerHTML = `<div class="verdict warn">Mensagem enfileirada. Aguardando o servidor processar…</div>${technical}`;
 
+  const deadLettered = async () => {
+    const now = await dlqCount();
+    return dlqBefore !== null && now !== null && now > dlqBefore;
+  };
+  const dlqMessage = `<div class="verdict bad">A mensagem foi <b>recusada pelo sistema</b> e foi para a fila de mensagens com erro (DLQ): o conteúdo foi considerado inválido (erro permanente) e não será tentado de novo. O saldo não mudou.<span class="tag">Confira o tipo e a referência (BET não aceita referência; REFUND e ROLLBACK exigem), o provedor e o ID externo. Isso é o comportamento esperado para uma mensagem malformada.</span></div>${technical}`;
+
   for (let attempt = 0; attempt < 15; attempt += 1) {
     await new Promise((done) => setTimeout(done, 1000));
     const found = await lookup();
+
+    if (found.status !== 200 && attempt >= 1 && (await deadLettered())) {
+      $("s9-out").innerHTML = dlqMessage;
+      return;
+    }
 
     if (found.status === 200) {
       await refreshBalance();
@@ -829,6 +867,11 @@ $("s9-sqs").onclick = async () => {
         <details class="tech" open><summary>Ver a transação</summary><pre>${esc(pretty(found.data))}</pre></details>`;
       return;
     }
+  }
+
+  if (await deadLettered()) {
+    $("s9-out").innerHTML = dlqMessage;
+    return;
   }
 
   $("s9-out").innerHTML = `<div class="verdict bad">A mensagem foi enfileirada, mas não apareceu como processada em 15 s. Veja o histórico técnico e <span class="mono">docker compose logs app</span>.</div>${technical}`;
@@ -849,6 +892,7 @@ $("s9-health").onclick = async () => {
 $("s9-provider").addEventListener("input", () => { $("s9-key").value = `${$("s9-provider").value}:${$("s9-ext").value}`; });
 
 (async function init() {
+  document.querySelectorAll("input").forEach((input) => { input.autocomplete = "off"; });
   buildNav();
   $("s1-player").value = `jogador-${rand()}`;
   newAdvancedId();

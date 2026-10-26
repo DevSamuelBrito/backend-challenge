@@ -59,6 +59,7 @@ A API não aceita chamadas diretas de uma página aberta de outra origem (não h
 | `CONSOLE_PORT` | `4000` | Porta do console |
 | `SQS_ENDPOINT` | `http://localhost:4566` | LocalStack (mude se usou outra `LOCALSTACK_PORT`) |
 | `SQS_TRANSACTIONS_QUEUE` | `wager-transactions.fifo` | Fila de entrada |
+| `SQS_TRANSACTIONS_DLQ` | `wager-transactions-dlq.fifo` | Fila de mensagens com erro, que o console consulta para avisar quando uma mensagem foi recusada |
 
 ## Se algo não funcionar
 
@@ -67,5 +68,7 @@ A API não aceita chamadas diretas de uma página aberta de outra origem (não h
 | "nenhum servidor respondendo em 3000-3009" | A aplicação não subiu. Veja `docker compose ps -a` e `docker compose logs app`. O texto ao lado diz o erro da primeira porta. |
 | Erro ao enviar | A instância escolhida parou. Clique em "Detectar de novo". |
 | Fila SQS dá erro | LocalStack fora do ar ou em outra porta (`SQS_ENDPOINT`). |
+| Pela fila, "foi para a fila de mensagens com erro (DLQ)" | A mensagem foi recusada como inválida (erro permanente) e não altera o saldo. Causas comuns: BET com referência, REFUND/ROLLBACK sem referência, valor inválido, provedor ou ID errados. O console já bloqueia as combinações de tipo e referência antes de enviar. |
+| Pela fila, "não apareceu como processada em 15 s" | O consumidor não processou: veja `docker compose logs app`. |
 | A porta 4000 está ocupada | `CONSOLE_PORT=4100 bun run console` |
 | Os passos dizem "crie uma carteira primeiro" | A carteira salva no navegador não existe mais (por exemplo depois de `down -v`). Crie outra no passo 1. |

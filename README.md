@@ -70,6 +70,21 @@ docker compose down -v       # remove containers E o volume do banco
 
 Os exemplos abaixo usam `$API` (bash) e `$api` (PowerShell), definidos no início rápido. Com várias instâncias, `docker compose port --index N app 3000` devolve a porta da instância `N`; use-a no lugar para falar com uma instância específica.
 
+## Console web de testes (opcional)
+
+Se preferir clicar a digitar `curl`, o repositório traz uma página de testes guiada. Com a aplicação no ar (início rápido), em outro terminal:
+
+```bash
+bun install
+bun run console
+```
+
+Abra **http://localhost:4000**. O console **descobre sozinho em que porta cada instância da aplicação subiu** (varre `3000-3009`), então não é preciso consultar `docker compose port`; com `--scale app=3` ele lista as três e deixa escolher.
+
+A página conduz por passos, e cada resultado vem explicado em português (a resposta técnica fica à mostra): criar carteira, BET, replay idempotente, aposta maior que o saldo, WIN, REFUND, ROLLBACK, extrato com conferência, teste de concorrência (na sua carteira ou numa carteira nova) e um modo avançado com envio pela fila SQS. Dá para trocar entre as carteiras criadas.
+
+Ele não faz parte da aplicação nem altera `src/`: é um servidor local (`127.0.0.1`) que serve a página e repassa as chamadas, porque a API não tem CORS. Detalhes, roteiro de teste e solução de problemas em [console/README.md](console/README.md). Precisa do Bun; sem ele, os exemplos de `curl` abaixo cobrem o mesmo.
+
 ## Exemplos de uso
 
 Os exemplos de bash usam `curl`. Os de PowerShell usam `curl.exe` (o `curl` do PowerShell 5 é outro comando) e enviam o JSON pelo *pipe* (`-d "@-"`), porque o PowerShell 5 remove as aspas de argumentos para programas nativos. No PowerShell 7 também funciona. Os `id`s abaixo são ilustrativos.
@@ -319,6 +334,7 @@ Todas são opcionais; os padrões já funcionam com `docker compose up`. A lista
 | `migrations/` | Migrations do MikroORM (up/down) |
 | `test/unit`, `test/integration`, `test/concurrency` | As três suítes; `test/support` tem os helpers; `test/smoke` tem os scripts de verificação do Compose |
 | `test/load/` | Teste de carga (`bun run test:load`); o relatório é `docs/LOAD_TEST.md` |
+| `console/` | Console web de testes manuais (`bun run console`), com README próprio |
 | `localstack/init/` | Script que cria as 3 filas no LocalStack |
 | `Dockerfile`, `docker-compose.yml` | Imagem e stack completa; `docker-compose.test.yml` é a infra dos testes |
 
@@ -338,5 +354,6 @@ Todas são opcionais; os padrões já funcionam com `docker compose up`. A lista
 ## Documentação
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): decisões, trade-offs, interpretações e limitações.
+- [console/README.md](console/README.md): console web para testar a API sem digitar `curl`.
 - [docs/LOAD_TEST.md](docs/LOAD_TEST.md): teste de carga (ambiente, metodologia, resultados e análise).
 - [docs/CHALLENGE.md](docs/CHALLENGE.md): enunciado do desafio.

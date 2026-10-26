@@ -1,10 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { GetQueueUrlCommand, SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
+import {
+  GetQueueAttributesCommand,
+  GetQueueUrlCommand,
+  SendMessageCommand,
+  SQSClient,
+} from "@aws-sdk/client-sqs";
 
 const CONSOLE_PORT = Number(process.env.CONSOLE_PORT ?? 4000);
 const SQS_ENDPOINT = process.env.SQS_ENDPOINT ?? "http://localhost:4566";
 const INPUT_QUEUE = process.env.SQS_TRANSACTIONS_QUEUE ?? "wager-transactions.fifo";
+const DEAD_LETTER_QUEUE = process.env.SQS_TRANSACTIONS_DLQ ?? "wager-transactions-dlq.fifo";
 const FIRST_APP_PORT = 3000;
 const LAST_APP_PORT = 3009;
 const PROBE_TIMEOUT_MS = 3000;
@@ -116,6 +122,34 @@ async function sendToQueue(request: Request) {
   }
 }
 
+async function deadLetterDepth() {
+  const client = new SQSClient({
+    region: "us-east-1",
+    endpoint: SQS_ENDPOINT,
+    credentials: { accessKeyId: "test", secretAccessKey: "test" },
+  });
+
+  try {
+    const { QueueUrl } = await client.send(
+      new GetQueueUrlCommand({ QueueName: DEAD_LETTER_QUEUE }),
+    );
+    const { Attributes } = await client.send(
+      new GetQueueAttributesCommand({
+        QueueUrl,
+        AttributeNames: ["ApproximateNumberOfMessages", "ApproximateNumberOfMessagesNotVisible"],
+      }),
+    );
+    const visible = Number(Attributes?.ApproximateNumberOfMessages ?? 0);
+    const inFlight = Number(Attributes?.ApproximateNumberOfMessagesNotVisible ?? 0);
+
+    return json({ messages: visible + inFlight });
+  } catch (error) {
+    return json({ error: String(error) }, 502);
+  } finally {
+    client.destroy();
+  }
+}
+
 Bun.serve({
   hostname: "127.0.0.1",
   port: CONSOLE_PORT,
@@ -124,6 +158,7 @@ Bun.serve({
     if (url.pathname === "/") return new Response(Bun.file(join(import.meta.dir, "index.html")));
     if (url.pathname === "/instances") return json(await probeInstances());
     if (url.pathname === "/sqs" && request.method === "POST") return sendToQueue(request);
+    if (url.pathname === "/dlq") return deadLetterDepth();
     if (url.pathname.startsWith("/api/")) return proxy(request, url);
     return json({ error: "não encontrado" }, 404);
   },
